@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../presentation/screens/auth/login_screen.dart';
 import '../presentation/screens/backlog/backlog_screen.dart';
 import '../presentation/screens/profile/profile_screen.dart';
+import '../presentation/screens/game_detail/game_detail_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 
 class AppRouter {
@@ -47,6 +48,14 @@ class AppRouter {
         path: '/profile',
         name: 'profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/game/:id',
+        name: 'game-detail',
+        builder: (context, state) {
+          final gameId = state.pathParameters['id']!;
+          return GameDetailScreen(gameId: gameId);
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
