@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/backlog_provider.dart';
+import 'widgets/game_card.dart';
+import 'widgets/add_game_dialog.dart';
+import 'widgets/edit_game_dialog.dart';
 
 class BacklogDesktopView extends StatefulWidget {
   const BacklogDesktopView({super.key});
@@ -12,6 +16,13 @@ class BacklogDesktopView extends StatefulWidget {
 
 class _BacklogDesktopViewState extends State<BacklogDesktopView> {
   int _selectedIndex = 0;
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +37,6 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
             selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
               if (index == 3) {
-                // Perfil
                 context.go('/profile');
               } else {
                 setState(() {
@@ -105,7 +115,6 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const Spacer(),
-                      // Usuario
                       Row(
                         children: [
                           Text(
@@ -142,14 +151,7 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
       ),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton.extended(
-              onPressed: () {
-                // TODO: Abrir diálogo para agregar juego (Fase 6)
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Función disponible en Fase 6'),
-                  ),
-                );
-              },
+              onPressed: () => _showAddGameDialog(context),
               icon: const Icon(Icons.add),
               label: const Text('Agregar Juego'),
             )
@@ -184,9 +186,93 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
   }
 
   Widget _buildBacklogTab() {
+    return Consumer<BacklogProvider>(
+      builder: (context, backlogProvider, child) {
+        if (backlogProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final entries = backlogProvider.filteredEntries;
+
+        return Column(
+          children: [
+            _buildFilterChips(backlogProvider),
+            Expanded(
+              child: entries.isEmpty
+                  ? _buildEmptyState()
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 400,
+                        childAspectRatio: 3,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: entries.length,
+                      itemBuilder: (context, index) {
+                        final entry = entries[index];
+                        final game = backlogProvider.gamesMap[entry.gameId];
+
+                        if (game == null) return const SizedBox.shrink();
+
+                        return GameCard(
+                          entry: entry,
+                          game: game,
+                          onEdit: () => _showEditGameDialog(context, entry, game),
+                          onDelete: () => _showDeleteConfirmation(context, entry.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterChips(BacklogProvider provider) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _buildFilterChip(provider, 'all', 'Todos', Icons.apps),
+          _buildFilterChip(provider, 'playing', 'Jugando', Icons.play_arrow),
+          _buildFilterChip(provider, 'completed', 'Completados', Icons.check),
+          _buildFilterChip(provider, 'pending', 'Pendientes', Icons.schedule),
+          _buildFilterChip(provider, 'on_hold', 'En pausa', Icons.pause),
+          _buildFilterChip(provider, 'dropped', 'Abandonados', Icons.close),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(
+    BacklogProvider provider,
+    String value,
+    String label,
+    IconData icon,
+  ) {
+    final isSelected = provider.selectedFilter == value;
+    return FilterChip(
+      selected: isSelected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 4),
+          Text(label),
+        ],
+      ),
+      onSelected: (_) => provider.setFilter(value),
+    );
+  }
+
+  Widget _buildEmptyState() {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: const BoxConstraints(maxWidth: 400),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -206,36 +292,7 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Colors.grey[600],
                   ),
-            ),
-            const SizedBox(height: 32),
-            Card(
-              margin: const EdgeInsets.all(24),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    Text(
-                      '🎮 Funcionalidades próximamente',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        Chip(label: Text('Agregar juegos')),
-                        Chip(label: Text('Filtrar por estado')),
-                        Chip(label: Text('Buscar juegos')),
-                        Chip(label: Text('Ver estadísticas')),
-                        Chip(label: Text('Editar horas jugadas')),
-                        Chip(label: Text('Calificar juegos')),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -244,59 +301,219 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
   }
 
   Widget _buildSearchTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search,
-            size: 120,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Búsqueda de juegos',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Esta función estará disponible en la Fase 6',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.grey[600],
+    return Consumer<BacklogProvider>(
+      builder: (context, backlogProvider, child) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar juegos en tu backlog...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              backlogProvider.clearSearch();
+                            },
+                          )
+                        : null,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (value) {
+                    backlogProvider.setSearchQuery(value);
+                  },
                 ),
-          ),
-        ],
-      ),
+              ),
+            ),
+            Expanded(
+              child: backlogProvider.filteredEntries.isEmpty
+                  ? Center(
+                      child: Text(
+                        backlogProvider.searchQuery.isEmpty
+                            ? 'Escribe para buscar en tu backlog'
+                            : 'No se encontraron juegos',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 400,
+                        childAspectRatio: 3,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: backlogProvider.filteredEntries.length,
+                      itemBuilder: (context, index) {
+                        final entry = backlogProvider.filteredEntries[index];
+                        final game = backlogProvider.gamesMap[entry.gameId];
+
+                        if (game == null) return const SizedBox.shrink();
+
+                        return GameCard(
+                          entry: entry,
+                          game: game,
+                          onEdit: () => _showEditGameDialog(context, entry, game),
+                          onDelete: () => _showDeleteConfirmation(context, entry.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildStatsTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.bar_chart,
-            size: 120,
-            color: Colors.grey[300],
+    return Consumer<BacklogProvider>(
+      builder: (context, backlogProvider, child) {
+        final stats = backlogProvider.stats;
+        final total = backlogProvider.getTotalGames();
+
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: GridView.count(
+              padding: const EdgeInsets.all(24),
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 2.5,
+              children: [
+                _buildStatCard('Total de juegos', total.toString(), Icons.games, Colors.blue),
+                _buildStatCard('Jugando', stats['playing']?.toString() ?? '0', Icons.play_arrow, Colors.blue),
+                _buildStatCard('Completados', stats['completed']?.toString() ?? '0', Icons.check, Colors.green),
+                _buildStatCard('Pendientes', stats['pending']?.toString() ?? '0', Icons.schedule, Colors.orange),
+                _buildStatCard('En pausa', stats['on_hold']?.toString() ?? '0', Icons.pause, Colors.amber),
+                _buildStatCard('Abandonados', stats['dropped']?.toString() ?? '0', Icons.close, Colors.red),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Estadísticas detalladas',
-            style: Theme.of(context).textTheme.headlineMedium,
+        );
+      },
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: color.withOpacity(0.1),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddGameDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AddGameDialog(
+        onAdd: (title, platform, status, genre) async {
+          final backlogProvider = context.read<BacklogProvider>();
+          final success = await backlogProvider.addGame(
+            title: title,
+            platform: platform,
+            status: status,
+            genre: genre,
+          );
+
+          if (success && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Juego agregado exitosamente')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _showEditGameDialog(BuildContext context, entry, game) {
+    showDialog(
+      context: context,
+      builder: (context) => EditGameDialog(
+        entry: entry,
+        game: game,
+        onUpdate: ({status, hoursPlayed, rating, notes}) async {
+          final backlogProvider = context.read<BacklogProvider>();
+          final success = await backlogProvider.updateGameEntry(
+            entryId: entry.id,
+            status: status,
+            hoursPlayed: hoursPlayed,
+            rating: rating,
+            notes: notes,
+          );
+
+          if (success && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Juego actualizado exitosamente')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, String entryId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar juego'),
+        content: const Text('¿Estás seguro de que quieres eliminar este juego del backlog?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Esta función estará disponible en la Fase 6',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => context.go('/profile'),
-            icon: const Icon(Icons.person),
-            label: const Text('Ver estadísticas básicas en tu perfil'),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final backlogProvider = context.read<BacklogProvider>();
+              final success = await backlogProvider.removeGame(entryId);
+
+              if (success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Juego eliminado')),
+                );
+              }
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
