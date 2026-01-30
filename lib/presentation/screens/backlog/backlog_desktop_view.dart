@@ -36,7 +36,9 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
           NavigationRail(
             selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
-              if (index == 3) {
+              if (index == 1) {
+                context.push('/search');
+              } else if (index == 3) {
                 context.go('/profile');
               } else {
                 setState(() {
@@ -150,10 +152,24 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
         ],
       ),
       floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton.extended(
-              onPressed: () => _showAddGameDialog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Agregar Juego'),
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                FloatingActionButton.extended(
+                  heroTag: 'manual',
+                  onPressed: () => _showAddGameDialog(context),
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Manual'),
+                  backgroundColor: Colors.grey[700],
+                ),
+                const SizedBox(height: 16),
+                FloatingActionButton.extended(
+                  heroTag: 'search',
+                  onPressed: () => context.push('/search'),
+                  icon: const Icon(Icons.search),
+                  label: const Text('Buscar Online'),
+                ),
+              ],
             )
           : null,
     );

@@ -73,167 +73,177 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
             child: Column(
-          children: [
-            // Avatar
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: Text(
-                user.username[0].toUpperCase(),
-                style: const TextStyle(fontSize: 48, color: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Nombre de usuario
-            Text(
-              user.username,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+              children: [
+                // Avatar
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  child: Text(
+                    user.username[0].toUpperCase(),
+                    style: const TextStyle(fontSize: 48, color: Colors.white),
                   ),
-            ),
-            const SizedBox(height: 8),
+                ),
+                const SizedBox(height: 16),
 
-            // Email
-            Text(
-              user.email,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-            ),
-            const SizedBox(height: 8),
+                // Nombre de usuario
+                Text(
+                  user.username,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 8),
 
-            // Fecha de registro
-            Text(
-              'Miembro desde ${_formatDate(user.createdAt)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[500],
-                  ),
-            ),
-            const SizedBox(height: 32),
+                // Email
+                Text(
+                  user.email,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                ),
+                const SizedBox(height: 8),
 
-            // Estadísticas del backlog
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Estadísticas del Backlog',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_isLoadingStats)
-                      const Center(child: CircularProgressIndicator())
-                    else if (_stats.isEmpty)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text(
-                            'Aún no tienes juegos en tu backlog',
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                // Fecha de registro
+                Text(
+                  'Miembro desde ${_formatDate(user.createdAt)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[500],
+                      ),
+                ),
+                const SizedBox(height: 32),
+
+                // Estadísticas del backlog
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Estadísticas del Backlog',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
-                      )
-                    else
-                      Column(
-                        children: [
-                          _buildStatRow(
-                            context,
-                            '🎮 Jugando',
-                            _stats['playing'] ?? 0,
-                            Colors.blue,
+                        const SizedBox(height: 16),
+                        if (_isLoadingStats)
+                          const Center(child: CircularProgressIndicator())
+                        else if (_stats.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Text(
+                                'Aún no tienes juegos en tu backlog',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          )
+                        else
+                          Column(
+                            children: [
+                              _buildStatRow(
+                                context,
+                                '🎮 Jugando',
+                                _stats['playing'] ?? 0,
+                                Colors.blue,
+                              ),
+                              const Divider(),
+                              _buildStatRow(
+                                context,
+                                '✅ Completados',
+                                _stats['completed'] ?? 0,
+                                Colors.green,
+                              ),
+                              const Divider(),
+                              _buildStatRow(
+                                context,
+                                '⏳ Pendientes',
+                                _stats['pending'] ?? 0,
+                                Colors.orange,
+                              ),
+                              const Divider(),
+                              _buildStatRow(
+                                context,
+                                '⏸️ En pausa',
+                                _stats['on_hold'] ?? 0,
+                                Colors.amber,
+                              ),
+                              const Divider(),
+                              _buildStatRow(
+                                context,
+                                '❌ Abandonados',
+                                _stats['dropped'] ?? 0,
+                                Colors.red,
+                              ),
+                              const Divider(height: 24),
+                              _buildStatRow(
+                                context,
+                                '📊 Total',
+                                _stats.values.fold(0, (sum, count) => sum + count),
+                                Theme.of(context).colorScheme.primary,
+                                isBold: true,
+                              ),
+                            ],
                           ),
-                          const Divider(),
-                          _buildStatRow(
-                            context,
-                            '✅ Completados',
-                            _stats['completed'] ?? 0,
-                            Colors.green,
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Botón de cerrar sesión
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final shouldLogout = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Cerrar sesión'),
+                        content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancelar'),
                           ),
-                          const Divider(),
-                          _buildStatRow(
-                            context,
-                            '⏳ Pendientes',
-                            _stats['pending'] ?? 0,
-                            Colors.orange,
-                          ),
-                          const Divider(),
-                          _buildStatRow(
-                            context,
-                            '⏸️ En pausa',
-                            _stats['on_hold'] ?? 0,
-                            Colors.amber,
-                          ),
-                          const Divider(),
-                          _buildStatRow(
-                            context,
-                            '❌ Abandonados',
-                            _stats['dropped'] ?? 0,
-                            Colors.red,
-                          ),
-                          const Divider(height: 24),
-                          _buildStatRow(
-                            context,
-                            '📊 Total',
-                            _stats.values.fold(0, (sum, count) => sum + count),
-                            Theme.of(context).colorScheme.primary,
-                            isBold: true,
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Cerrar sesión'),
                           ),
                         ],
                       ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
+                    );
 
-            // Botón de cerrar sesión
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final shouldLogout = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Cerrar sesión'),
-                      content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancelar'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Cerrar sesión'),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (shouldLogout == true && mounted) {
-                    await authProvider.logout();
-                    if (mounted) {
-                      context.go('/login');
+                    if (shouldLogout == true && mounted) {
+                      await authProvider.logout();
+                      if (mounted) {
+                        context.go('/login');
+                      }
                     }
-                  }
-                },
-                icon: const Icon(Icons.logout),
-                label: const Text('Cerrar Sesión'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Cerrar Sesión'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 16),
+
+                // Botón de prueba de API (temporal para desarrollo)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    context.push('/api-test');
+                  },
+                  icon: const Icon(Icons.cloud),
+                  label: const Text('🧪 Probar API RAWG'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-        ),
-      ),
       ),
     );
   }

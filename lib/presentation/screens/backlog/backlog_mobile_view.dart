@@ -31,66 +31,138 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Game Backlog'),
+        title: Text(_getTitle()),
         actions: [
-          IconButton(
-            icon: CircleAvatar(
+          if (_selectedIndex == 0)
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () {
+                // Navegar a búsqueda global
+                context.push('/search');
+              },
+            ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: CircleAvatar(
               radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primary,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               child: Text(
                 user?.username[0].toUpperCase() ?? 'U',
-                style: const TextStyle(fontSize: 14, color: Colors.white),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            onPressed: () => context.go('/profile'),
-            tooltip: 'Perfil',
           ),
-          const SizedBox(width: 8),
         ],
       ),
+      drawer: _buildDrawer(context, user),
       body: _buildBody(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          if (index == 1) {
+            // Ir a pantalla de búsqueda dedicada en lugar de cambiar tab
+            context.push('/search');
+          } else if (index == 3) {
+            context.go('/profile');
+          } else {
+            setState(() {
+              _selectedIndex = index;
+            });
+          }
         },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.games),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.games_outlined),
+            selectedIcon: Icon(Icons.games),
             label: 'Backlog',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.search),
-            label: 'Buscar',
+            label: 'Buscar Online',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Estadísticas',
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart),
+            label: 'Stats',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Perfil',
           ),
         ],
       ),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
-              onPressed: () => _showAddGameDialog(context),
+              onPressed: () => _showAddOptions(context),
               child: const Icon(Icons.add),
             )
           : null,
     );
   }
 
+  String _getTitle() {
+    switch (_selectedIndex) {
+      case 0:
+        return 'Mi Backlog';
+      case 2:
+        return 'Estadísticas';
+      default:
+        return 'Game Backlog';
+    }
+  }
+
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0:
         return _buildBacklogTab();
-      case 1:
-        return _buildSearchTab();
       case 2:
         return _buildStatsTab();
       default:
         return _buildBacklogTab();
     }
+  }
+
+  Widget _buildDrawer(BuildContext context, dynamic user) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(user?.username ?? 'Usuario'),
+            accountEmail: Text(user?.email ?? ''),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Text(
+                user?.username[0].toUpperCase() ?? 'U',
+                style: const TextStyle(fontSize: 24.0),
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('Mi Perfil'),
+            onTap: () {
+              context.pop(); // cerrar drawer
+              context.go('/profile');
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red)),
+            onTap: () async {
+              context.pop();
+              await context.read<AuthProvider>().logout();
+              if (context.mounted) context.go('/login');
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildBacklogTab() {
@@ -104,14 +176,29 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
 
         return Column(
           children: [
-            // Filtros
-            _buildFilterChips(backlogProvider),
-
-            // Lista de juegos
+            // Filtros rápidos
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  _buildFilterChip(backlogProvider, 'all', 'Todos'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(backlogProvider, 'playing', 'Jugando'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(backlogProvider, 'completed', 'Completados'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(backlogProvider, 'pending', 'Pendientes'),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(backlogProvider, 'dropped', 'Abandonados'),
+                ],
+              ),
+            ),
             Expanded(
               child: entries.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
+                      padding: const EdgeInsets.all(16),
                       itemCount: entries.length,
                       itemBuilder: (context, index) {
                         final entry = entries[index];
@@ -119,11 +206,14 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
 
                         if (game == null) return const SizedBox.shrink();
 
-                        return GameCard(
-                          entry: entry,
-                          game: game,
-                          onEdit: () => _showEditGameDialog(context, entry, game),
-                          onDelete: () => _showDeleteConfirmation(context, entry.id),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GameCard(
+                            entry: entry,
+                            game: game,
+                            onEdit: () => _showEditGameDialog(context, entry, game),
+                            onDelete: () => _showDeleteConfirmation(context, entry.id),
+                          ),
                         );
                       },
                     ),
@@ -134,45 +224,10 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
     );
   }
 
-  Widget _buildFilterChips(BacklogProvider provider) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          _buildFilterChip(provider, 'all', 'Todos', Icons.apps),
-          const SizedBox(width: 8),
-          _buildFilterChip(provider, 'playing', 'Jugando', Icons.play_arrow),
-          const SizedBox(width: 8),
-          _buildFilterChip(provider, 'completed', 'Completados', Icons.check),
-          const SizedBox(width: 8),
-          _buildFilterChip(provider, 'pending', 'Pendientes', Icons.schedule),
-          const SizedBox(width: 8),
-          _buildFilterChip(provider, 'on_hold', 'En pausa', Icons.pause),
-          const SizedBox(width: 8),
-          _buildFilterChip(provider, 'dropped', 'Abandonados', Icons.close),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(
-    BacklogProvider provider,
-    String value,
-    String label,
-    IconData icon,
-  ) {
-    final isSelected = provider.selectedFilter == value;
+  Widget _buildFilterChip(BacklogProvider provider, String value, String label) {
     return FilterChip(
-      selected: isSelected,
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 4),
-          Text(label),
-        ],
-      ),
+      label: Text(label),
+      selected: provider.selectedFilter == value,
       onSelected: (_) => provider.setFilter(value),
     );
   }
@@ -182,117 +237,36 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.games_outlined,
-            size: 80,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.videogame_asset_off, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             'No hay juegos',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Agrega juegos usando el botón +',
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildSearchTab() {
-    return Consumer<BacklogProvider>(
+  
+  Widget _buildStatsTab() {
+     return Consumer<BacklogProvider>(
       builder: (context, backlogProvider, child) {
-        return Column(
+        final stats = backlogProvider.stats;
+        return ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Buscar juegos...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            backlogProvider.clearSearch();
-                          },
-                        )
-                      : null,
-                  border: const OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  backlogProvider.setSearchQuery(value);
-                },
-              ),
-            ),
-            Expanded(
-              child: backlogProvider.filteredEntries.isEmpty
-                  ? Center(
-                      child: Text(
-                        backlogProvider.searchQuery.isEmpty
-                            ? 'Escribe para buscar'
-                            : 'No se encontraron juegos',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: backlogProvider.filteredEntries.length,
-                      itemBuilder: (context, index) {
-                        final entry = backlogProvider.filteredEntries[index];
-                        final game = backlogProvider.gamesMap[entry.gameId];
-
-                        if (game == null) return const SizedBox.shrink();
-
-                        return GameCard(
-                          entry: entry,
-                          game: game,
-                          onEdit: () => _showEditGameDialog(context, entry, game),
-                          onDelete: () => _showDeleteConfirmation(context, entry.id),
-                        );
-                      },
-                    ),
-            ),
+            _buildStatCard('Jugando', stats['playing'] ?? 0, Colors.blue, Icons.play_arrow),
+            _buildStatCard('Completados', stats['completed'] ?? 0, Colors.green, Icons.check_circle),
+            _buildStatCard('Pendientes', stats['pending'] ?? 0, Colors.orange, Icons.schedule),
+            _buildStatCard('En pausa', stats['on_hold'] ?? 0, Colors.amber, Icons.pause),
+            _buildStatCard('Abandonados', stats['dropped'] ?? 0, Colors.red, Icons.cancel),
           ],
         );
       },
     );
   }
 
-  Widget _buildStatsTab() {
-    return Consumer<BacklogProvider>(
-      builder: (context, backlogProvider, child) {
-        final stats = backlogProvider.stats;
-        final total = backlogProvider.getTotalGames();
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Estadísticas del Backlog',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 24),
-              _buildStatCard('Total de juegos', total.toString(), Icons.games, Colors.blue),
-              _buildStatCard('Jugando', stats['playing']?.toString() ?? '0', Icons.play_arrow, Colors.blue),
-              _buildStatCard('Completados', stats['completed']?.toString() ?? '0', Icons.check, Colors.green),
-              _buildStatCard('Pendientes', stats['pending']?.toString() ?? '0', Icons.schedule, Colors.orange),
-              _buildStatCard('En pausa', stats['on_hold']?.toString() ?? '0', Icons.pause, Colors.amber),
-              _buildStatCard('Abandonados', stats['dropped']?.toString() ?? '0', Icons.close, Colors.red),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(String label, int value, Color color, IconData icon) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -302,13 +276,39 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
         ),
         title: Text(label),
         trailing: Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+          value.toString(),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
+      ),
+    );
+  }
+
+  void _showAddOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.search, color: Colors.blue),
+            title: const Text('Buscar en RAWG (Recomendado)'),
+            subtitle: const Text('Obtiene portada y datos automáticamente'),
+            onTap: () {
+              Navigator.pop(context); // cerrar sheet
+              context.push('/search');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit, color: Colors.grey),
+            title: const Text('Agregar Manualmente'),
+            subtitle: const Text('Ingresa los datos del juego tú mismo'),
+            onTap: () {
+              Navigator.pop(context); // cerrar sheet
+              _showAddGameDialog(context);
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

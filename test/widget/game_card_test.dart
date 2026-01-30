@@ -15,7 +15,9 @@ void main() {
         title: 'The Legend of Zelda',
         platform: 'Nintendo Switch',
         genre: 'Adventure',
+        userId: 'user-1',
         createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       testEntry = GameBacklogEntry(

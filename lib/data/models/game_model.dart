@@ -4,37 +4,52 @@ class GameModel extends Game {
   GameModel({
     required super.id,
     required super.title,
-    super.coverUrl,
-    super.description,
     super.platform,
     super.genre,
-    super.releaseYear,
+    super.releaseDate,
+    super.coverUrl,
+    super.description,
+    super.remoteId,
     required super.createdAt,
+    required super.updatedAt,
+    required super.userId,
   });
 
+  // Constructor from JSON (Local Database - SQLite)
   factory GameModel.fromJson(Map<String, dynamic> json) {
     return GameModel(
       id: json['id'],
       title: json['title'],
-      coverUrl: json['cover_url'],
-      description: json['description'],
       platform: json['platform'],
       genre: json['genre'],
-      releaseYear: json['release_year'],
-      createdAt: DateTime.parse(json['created_at']),
+      releaseDate: json['releaseDate'] != null
+          ? DateTime.tryParse(json['releaseDate'])
+          : null,
+      coverUrl: json['coverUrl'],
+      description: json['description'],
+      remoteId: json['remoteId'],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: json['updatedAt'] != null 
+          ? DateTime.parse(json['updatedAt']) 
+          : DateTime.now(), // Fallback for migration
+      userId: json['userId'] ?? 'unknown', // Fallback for migration
     );
   }
 
+  // To JSON (Local Database - SQLite)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
-      'cover_url': coverUrl,
-      'description': description,
       'platform': platform,
       'genre': genre,
-      'release_year': releaseYear,
-      'created_at': createdAt.toIso8601String(),
+      'releaseDate': releaseDate?.toIso8601String(),
+      'coverUrl': coverUrl,
+      'description': description,
+      'remoteId': remoteId,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'userId': userId,
     };
   }
 }

@@ -7,9 +7,9 @@ void main() {
   group('BacklogProvider', () {
     late BacklogProvider provider;
 
-    setUp(() {
-      provider = BacklogProvider(userId: 'test-user-id');
-    });
+    // setUp(() {
+    //   provider = BacklogProvider(userId: 'test-user-id');
+    // });
 
     test('initial state should be empty', () {
       expect(provider.backlogEntries, isEmpty);

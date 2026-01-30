@@ -4,6 +4,8 @@ import '../presentation/screens/auth/login_screen.dart';
 import '../presentation/screens/backlog/backlog_screen.dart';
 import '../presentation/screens/profile/profile_screen.dart';
 import '../presentation/screens/game_detail/game_detail_screen.dart';
+import '../presentation/screens/api_test/api_test_screen.dart';
+import '../presentation/screens/search/search_screen.dart'; // ✅ IMPORTAR SearchScreen
 import '../presentation/providers/auth_provider.dart';
 
 class AppRouter {
@@ -56,6 +58,17 @@ class AppRouter {
           final gameId = state.pathParameters['id']!;
           return GameDetailScreen(gameId: gameId);
         },
+      ),
+      GoRoute(
+        path: '/api-test',
+        name: 'api-test',
+        builder: (context, state) => const ApiTestScreen(),
+      ),
+      // ✅ NUEVA RUTA DE BÚSQUEDA (SIN const)
+      GoRoute(
+        path: '/search',
+        name: 'search',
+        builder: (context, state) => SearchScreen(), // ❌ NO USAR const aquí
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

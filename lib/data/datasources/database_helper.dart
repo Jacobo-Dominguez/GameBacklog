@@ -28,10 +28,28 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+  if (oldVersion < 2) {
+    // Agregar columnas con valores por defecto SEGURAS
+    await db.execute('ALTER TABLE games ADD COLUMN coverUrl TEXT');
+    await db.execute('ALTER TABLE games ADD COLUMN description TEXT');
+    await db.execute('ALTER TABLE games ADD COLUMN remoteId INTEGER');
+    
+    // userId: usar un valor temporal que luego se corrija en auth
+    await db.execute("ALTER TABLE games ADD COLUMN userId TEXT NOT NULL DEFAULT 'migrated_user'");
+    
+    // updatedAt: copiar createdAt o usar timestamp actual
+    await db.execute('ALTER TABLE games ADD COLUMN updatedAt TEXT');
+    // Opcional: actualizar updatedAt = createdAt para registros existentes
+    await db.execute("UPDATE games SET updatedAt = IFNULL(releaseDate, datetime('now')) WHERE updatedAt IS NULL OR updatedAt = ''");
+  }
+}
 
   Future<void> _createDB(Database db, int version) async {
     const idType = 'TEXT PRIMARY KEY';
@@ -52,17 +70,20 @@ class DatabaseHelper {
       )
     ''');
 
-    // Tabla games
+    // Tabla games - Actualizada para v2
     await db.execute('''
       CREATE TABLE games (
         id $idType,
         title $textType,
-        cover_url $textTypeNullable,
-        description $textTypeNullable,
         platform $textTypeNullable,
         genre $textTypeNullable,
-        release_year $intTypeNullable,
-        created_at $textType
+        releaseDate $textTypeNullable,
+        coverUrl $textTypeNullable,
+        description $textTypeNullable,
+        remoteId $intTypeNullable,
+        createdAt $textType,
+        updatedAt $textType,
+        userId $textType
       )
     ''');
 

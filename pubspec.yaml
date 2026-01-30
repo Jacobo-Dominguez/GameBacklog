@@ -30,6 +30,12 @@ dependencies:
   # Encriptación y sesión
   crypto: ^3.0.3
   shared_preferences: ^2.2.2
+  
+  # API y networking
+  http: ^1.1.0
+  
+  # Imágenes de red con cache
+  cached_network_image: ^3.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
