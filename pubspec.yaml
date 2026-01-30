@@ -16,7 +16,13 @@ dependencies:
   sqflite_common_ffi: ^2.3.0
   path_provider: ^2.1.1
   path: ^1.8.3
+
+  # Renderizado HTML para descripciones de RAWG
+  #flutter_html: ^3.0.0
   
+  # Para abrir enlaces web (sitio oficial del juego)
+  url_launcher: ^6.2.0
+
   # Navegación
   go_router: ^13.0.0
   

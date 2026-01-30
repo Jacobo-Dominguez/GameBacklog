@@ -25,23 +25,24 @@ Una aplicación multiplataforma desarrollada en Flutter para gestionar tu backlo
 El proyecto sigue los principios de **Clean Architecture** con separación clara de responsabilidades:
 
 ```
-📦 game_backlog/
-├── 📂 lib/
-│   ├── 📂 core/              # Código compartido
-│   │   ├── constants/        # Constantes globales
-│   │   ├── theme/            # Temas y estilos
-│   │   ├── utils/            # Utilidades
-│   │   └── widgets/          # Widgets reutilizables
+game_backlog/
+├── lib/
+│   ├── core/                    # Código compartido entre capas
+│   │   ├── constants/           # Constantes globales
+│   │   ├── errors/              # Manejo de errores
+│   │   ├── theme/               # Tema y estilos
+│   │   ├── utils/               # Utilidades y helpers
+│   │   └── widgets/             # Widgets reutilizables
 │   │
-│   ├── 📂 data/              # Capa de Datos
-│   │   ├── datasources/      # Fuentes de datos (SQLite)
-│   │   ├── models/           # Modelos con serialización JSON
-│   │   └── repositories/     # Implementación de repositorios
+│   ├── data/                    # Capa de datos
+│   │   ├── datasources/         # Fuentes de datos (local/remoto)
+│   │   ├── models/              # Modelos de datos (DTOs)
+│   │   └── repositories/        # Implementación de repositorios
 │   │
-│   ├── 📂 domain/            # Capa de Dominio
-│   │   ├── entities/         # Entidades del negocio
-│   │   ├── repositories/     # Interfaces de repositorios
-│   │   └── usecases/         # Casos de uso
+│   ├── domain/                  # Lógica de negocio
+│   │   ├── entities/            # Entidades del dominio
+│   │   ├── repositories/        # Interfaces de repositorios
+│   │   └── usecases/            # Casos de uso
 │   │
 │   ├── 📂 presentation/      # Capa de Presentación
 │   │   ├── screens/          # Pantallas de la app
@@ -160,6 +161,10 @@ dependencies:
   # Autenticación
   crypto: ^3.0.3              # Encriptación de contraseñas
   shared_preferences: ^2.2.2  # Persistencia de sesión
+
+  # Red e Imágenes
+  http: ^1.1.0                # Peticiones API
+  cached_network_image: ^3.3.0 # Caché de imágenes
 ```
 
 ---
@@ -280,7 +285,7 @@ flutter devices
 - ✅ Script de pruebas funcional
 - ✅ Soporte para Windows con sqflite_common_ffi
 
-#### **Fase 4: Autenticación** ⭐ RECIÉN COMPLETADA
+#### **Fase 4: Autenticación** 
 - ✅ Pantalla de login con validación
 - ✅ Pantalla de registro con validación
 - ✅ Encriptación de contraseñas (SHA-256)
@@ -290,20 +295,42 @@ flutter devices
 - ✅ Manejo de errores y estados de carga
 - ✅ Validación de formularios
 
-### ⏳ Próximas Fases
-
-#### **Fase 5: Navegación y UI** (Siguiente)
-- Configuración de GoRouter
-- Protección de rutas privadas
-- Pantalla de perfil de usuario
-- Diseño adaptativo móvil/escritorio
-- Navegación declarativa
+#### **Fase 5: Navegación y UI**
+- ✅ Configuración de GoRouter con rutas protegidas
+- ✅ Pantalla de perfil de usuario
+- ✅ Diseño adaptativo móvil/escritorio (NavigationRail/BottomNavigationBar)
+- ✅ Implementación de tabs y stack de navegación
 
 #### **Fase 6: Gestión del Backlog**
-- CRUD completo en la interfaz
-- Filtros y búsqueda visual
-- Actualización de estado y horas
-- Estadísticas del usuario
+- ✅ CRUD completo en la interfaz principal
+- ✅ Tarjetas de juego interactivas con menús contextuales
+- ✅ Lógica de negocio (BacklogProvider)
+
+#### **Fase 7: Funcionalidades Avanzadas**
+- ✅ Filtros por estado (Jugando, Completado, etc.)
+- ✅ Búsqueda local en el backlog
+- ✅ Estadísticas y conteo de horas
+
+#### **Fase 8: Refactorización y Pruebas**
+- ✅ Tests unitarios para Providers y Modelos
+- ✅ Tests de widgets
+- ✅ Limpieza de código y mejores prácticas
+
+#### **Fase 9: Pulido Final (MVP)**
+- ✅ Iconos y assets personalizados
+- ✅ Verificación de flujos completos
+- ✅ Modo release
+
+#### **Fase 10: Integración API RAWG** 
+- ✅ Búsqueda online de videojuegos
+- ✅ Visualización de portadas artísticas
+- ✅ Sincronización de metadatos (fechas, plataformas)
+- ✅ Experiencia de usuario híbrida (Offline/Online)
+
+### ⏳ Próximas Fases
+- [ ] Sistema de amigos y social
+- [ ] Reseñas y comentarios detallados
+- [ ] Integración con tiendas (Steam, Epic)
 
 ---
 

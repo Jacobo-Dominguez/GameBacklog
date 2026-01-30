@@ -6,6 +6,7 @@ class GameSearchResult {
   final List<String> platforms;
   final List<String> genres;
   final String? released;
+  final String? description; // ✅ AGREGADO - RAWG lo devuelve en búsquedas
 
   GameSearchResult({
     required this.id,
@@ -15,6 +16,7 @@ class GameSearchResult {
     required this.platforms,
     required this.genres,
     this.released,
+    this.description, // ✅ AGREGADO
   });
 
   factory GameSearchResult.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class GameSearchResult {
               .toList() ??
           [],
       released: json['released'] as String?,
+      description: json['description'] as String?, // ✅ Mapeado desde RAWG
     );
   }
 
@@ -44,6 +47,7 @@ class GameSearchResult {
       'platforms': platforms,
       'genres': genres,
       'released': released,
+      'description': description, // ✅ Incluido
     };
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Import go_router
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../../domain/entities/game.dart';
 import '../../../../../domain/entities/game_backlog_entry.dart';
@@ -46,7 +47,10 @@ class GameCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onEdit,
+        onTap: () {
+          // Navegar a la pantalla de detalles pasando el objeto Game para carga instantánea
+          context.push('/game/${game.id}', extra: game);
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min, // Ajuste al contenido

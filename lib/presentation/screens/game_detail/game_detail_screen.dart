@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../../providers/backlog_provider.dart';
 import '../../../domain/entities/game.dart';
-import '../../../domain/entities/game_backlog_entry.dart';
+import '../../../data/datasources/game_remote_datasource.dart';
+import '../../providers/backlog_provider.dart';
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
+  final Game? gameHelper; 
 
   const GameDetailScreen({
     super.key,
     required this.gameId,
+    this.gameHelper,
   });
 
   @override
@@ -19,495 +21,254 @@ class GameDetailScreen extends StatefulWidget {
 }
 
 class _GameDetailScreenState extends State<GameDetailScreen> {
-  final _notesController = TextEditingController();
-  bool _isEditingNotes = false;
+  late Game _game;
+  bool _isLoading = true;
+  bool _isDescriptionExpanded = false;
+  String? _remoteDescription; // ✅ Solo necesitamos la descripción remota
+  final _remoteDataSource = GameRemoteDataSource();
 
   @override
-  void dispose() {
-    _notesController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadGame();
+  }
+
+  void _loadGame() {
+    final backlogProvider = context.read<BacklogProvider>();
+    final localGame = backlogProvider.gamesMap[widget.gameId];
+
+    if (localGame != null) {
+      _game = localGame;
+      _isLoading = false;
+      _loadRemoteDetails();
+    } else if (widget.gameHelper != null) {
+      _game = widget.gameHelper!;
+      _isLoading = false;
+      _loadRemoteDetails();
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _loadRemoteDetails() async {
+    // ✅ CORRECCIÓN: getGameDetails() ya devuelve Map, NO usar .toJson()
+    if (_game.remoteId != null && (_game.description == null || _game.description!.isEmpty)) {
+      try {
+        // Usar búsqueda por nombre (más confiable con key gratuita)
+        final results = await _remoteDataSource.searchGames(_game.title);
+        if (mounted && results.isNotEmpty) {
+          setState(() {
+            _remoteDescription = results.first.description; // ✅ Descripción directa
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading description: $e');
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<BacklogProvider>(
-      builder: (context, backlogProvider, child) {
-        // Buscar el juego y su entrada en el backlog
-        final game = backlogProvider.gamesMap[widget.gameId];
-        final entry = backlogProvider.backlogEntries.firstWhere(
-          (e) => e.gameId == widget.gameId,
-          orElse: () => throw Exception('Game not found'),
-        );
-
-        if (game == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Juego no encontrado')),
-            body: const Center(child: Text('El juego no existe')),
-          );
-        }
-
-        // Inicializar notas
-        if (_notesController.text.isEmpty && entry.notes != null) {
-          _notesController.text = entry.notes!;
-        }
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(game.title),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.pop(),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _showDeleteConfirmation(context, entry.id),
-                tooltip: 'Eliminar juego',
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
+    return Scaffold(
+      body: CustomScrollView(
+        slivers: [
+          _buildSliverAppBar(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeaderInfo(),
+                  const SizedBox(height: 24),
+                  _buildDescriptionSection(),
+                  const SizedBox(height: 40),
+                ],
               ),
-            ],
+            ),
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Icono del juego
-                    Center(
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(entry.status).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Icon(
-                          Icons.games,
-                          size: 64,
-                          color: _getStatusColor(entry.status),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          // TODO: Implementar gestión
+        },
+        icon: const Icon(Icons.edit),
+        label: const Text('Gestionar'),
+      ),
+    );
+  }
 
-                    // Título y plataforma
-                    Text(
-                      game.title,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    if (game.platform != null)
-                      Text(
-                        '🎮 ${game.platform}',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                    if (game.genre != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '📁 ${game.genre}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                    const SizedBox(height: 32),
-
-                    // Estado
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Estado',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            DropdownButtonFormField<String>(
-                              value: entry.status,
-                              decoration: InputDecoration(
-                                border: const OutlineInputBorder(),
-                                prefixIcon: Icon(
-                                  _getStatusIcon(entry.status),
-                                  color: _getStatusColor(entry.status),
-                                ),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: 'pending', child: Text('⏳ Pendiente')),
-                                DropdownMenuItem(value: 'playing', child: Text('🎮 Jugando')),
-                                DropdownMenuItem(value: 'completed', child: Text('✅ Completado')),
-                                DropdownMenuItem(value: 'on_hold', child: Text('⏸️ En pausa')),
-                                DropdownMenuItem(value: 'dropped', child: Text('❌ Abandonado')),
-                              ],
-                              onChanged: (value) {
-                                if (value != null) {
-                                  _updateStatus(context, entry.id, value);
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Horas jugadas
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Horas Jugadas',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton.filled(
-                                  onPressed: entry.hoursPlayed > 0
-                                      ? () => _updateHours(context, entry.id, entry.hoursPlayed - 1)
-                                      : null,
-                                  icon: const Icon(Icons.remove),
-                                ),
-                                const SizedBox(width: 24),
-                                Text(
-                                  '${entry.hoursPlayed}h',
-                                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                const SizedBox(width: 24),
-                                IconButton.filled(
-                                  onPressed: () => _updateHours(context, entry.id, entry.hoursPlayed + 1),
-                                  icon: const Icon(Icons.add),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Calificación
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Calificación',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            Center(
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                alignment: WrapAlignment.center,
-                                children: List.generate(11, (index) {
-                                  return ChoiceChip(
-                                    label: Text(index.toString()),
-                                    selected: entry.rating == index,
-                                    onSelected: (selected) {
-                                      _updateRating(context, entry.id, selected ? index : null);
-                                    },
-                                  );
-                                }),
-                              ),
-                            ),
-                            if (entry.rating != null) ...[
-                              const SizedBox(height: 12),
-                              Center(
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    ...List.generate(
-                                      5,
-                                      (index) => Icon(
-                                        index < (entry.rating! / 2).round()
-                                            ? Icons.star
-                                            : Icons.star_border,
-                                        color: Colors.amber,
-                                        size: 32,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '${entry.rating}/10',
-                                      style: Theme.of(context).textTheme.titleLarge,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Notas
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Notas',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                if (_isEditingNotes)
-                                  TextButton(
-                                    onPressed: () {
-                                      _updateNotes(context, entry.id, _notesController.text);
-                                      setState(() {
-                                        _isEditingNotes = false;
-                                      });
-                                    },
-                                    child: const Text('Guardar'),
-                                  )
-                                else
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    onPressed: () {
-                                      setState(() {
-                                        _isEditingNotes = true;
-                                      });
-                                    },
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (_isEditingNotes)
-                              TextField(
-                                controller: _notesController,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                  hintText: 'Escribe tus notas aquí...',
-                                ),
-                                maxLines: 5,
-                                autofocus: true,
-                              )
-                            else
-                              Text(
-                                entry.notes?.isEmpty ?? true
-                                    ? 'Sin notas'
-                                    : entry.notes!,
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Información adicional
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Información',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildInfoRow('Agregado', _formatDate(entry.addedDate)),
-                            const Divider(),
-                            _buildInfoRow('Última actualización', _formatDate(entry.lastUpdated)),
-                            if (entry.completedDate != null) ...[
-                              const Divider(),
-                              _buildInfoRow('Completado', _formatDate(entry.completedDate!)),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 300.0,
+      pinned: true,
+      flexibleSpace: FlexibleSpaceBar(
+        title: Text(
+          _game.title,
+          style: const TextStyle(
+            color: Colors.white,
+            shadows: [Shadow(color: Colors.black, blurRadius: 10)],
+          ),
+        ),
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_game.coverUrl != null && _game.coverUrl!.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: _game.coverUrl!,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Container(
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.videogame_asset, size: 80, color: Colors.white54),
+                ),
+              )
+            else
+              Container(
+                color: Colors.grey[800],
+                child: const Icon(Icons.videogame_asset, size: 80, color: Colors.white54),
+              ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, Colors.black87],
+                  stops: [0.6, 1.0],
                 ),
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.grey),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _updateStatus(BuildContext context, String entryId, String status) async {
-    final backlogProvider = context.read<BacklogProvider>();
-    final success = await backlogProvider.updateGameEntry(
-      entryId: entryId,
-      status: status,
-    );
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Estado actualizado')),
-      );
-    }
-  }
-
-  Future<void> _updateHours(BuildContext context, String entryId, int hours) async {
-    final backlogProvider = context.read<BacklogProvider>();
-    final success = await backlogProvider.updateGameEntry(
-      entryId: entryId,
-      hoursPlayed: hours,
-    );
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Horas actualizadas')),
-      );
-    }
-  }
-
-  Future<void> _updateRating(BuildContext context, String entryId, int? rating) async {
-    final backlogProvider = context.read<BacklogProvider>();
-    final success = await backlogProvider.updateGameEntry(
-      entryId: entryId,
-      rating: rating,
-    );
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Calificación actualizada')),
-      );
-    }
-  }
-
-  Future<void> _updateNotes(BuildContext context, String entryId, String notes) async {
-    final backlogProvider = context.read<BacklogProvider>();
-    final success = await backlogProvider.updateGameEntry(
-      entryId: entryId,
-      notes: notes.isEmpty ? null : notes,
-    );
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notas guardadas')),
-      );
-    }
-  }
-
-  void _showDeleteConfirmation(BuildContext context, String entryId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar juego'),
-        content: const Text('¿Estás seguro de que quieres eliminar este juego del backlog?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+  Widget _buildHeaderInfo() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (_game.platform != null && _game.platform!.isNotEmpty)
+          Chip(
+            avatar: const Icon(Icons.gamepad, size: 16),
+            label: Text(_game.platform!),
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final backlogProvider = context.read<BacklogProvider>();
-              final success = await backlogProvider.removeGame(entryId);
-
-              if (success && mounted) {
-                context.pop(); // Volver a la lista
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Juego eliminado')),
-                );
-              }
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+        if (_game.releaseDate != null)
+          Chip(
+            avatar: const Icon(Icons.calendar_today, size: 16),
+            label: Text('${_game.releaseDate!.year}'),
           ),
-        ],
+      ],
+    );
+  }
+
+  // ✅ Helper para eliminar tags HTML de la descripción
+  String _removeHtmlTags(String? html) {
+    if (html == null || html.isEmpty) return 'Sin descripción disponible.';
+    String result = html.replaceAll(RegExp(r'<[^>]*>'), '');
+    result = result.replaceAll('&nbsp;', ' ');
+    result = result.replaceAll('&quot;', '"');
+    result = result.replaceAll('&apos;', "'");
+    result = result.replaceAll('&amp;', '&');
+    return result.trim().isNotEmpty ? result.trim() : 'Sin descripción disponible.';
+  }
+
+  Widget _buildDescriptionSection() {
+  // ✅ PRIORIDAD: 1) descripción remota (limpia), 2) descripción local, 3) mensaje predeterminado
+  final descriptionText = _removeHtmlTags(_remoteDescription) != 'Sin descripción disponible.'
+      ? _removeHtmlTags(_remoteDescription)
+      : (_game.description != null && _game.description!.isNotEmpty
+          ? _game.description!
+          : 'Sin descripción disponible.');
+
+  // ✅ Mostrar mensaje amigable si no hay descripción disponible
+  if (descriptionText == 'Sin descripción disponible.') {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Acerca del juego', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'ℹ️ Información no disponible',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'La descripción detallada requiere una API key premium de RAWG. Con tu key actual solo se muestran datos básicos (nombre, portada, géneros).',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '💡 Consejo: Puedes editar el juego desde el botón "Gestionar" para añadir tu propia descripción manualmente.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.blue),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ Mostrar descripción normal (con expandir/colapsar) si está disponible
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('Acerca del juego', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 12),
+      InkWell(
+        onTap: () {
+          setState(() {
+            _isDescriptionExpanded = !_isDescriptionExpanded;
+          });
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              descriptionText,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+              maxLines: _isDescriptionExpanded ? null : 6,
+              overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _isDescriptionExpanded ? 'Ver menos' : 'Leer más',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _isDescriptionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'playing':
-        return Colors.blue;
-      case 'completed':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'on_hold':
-        return Colors.amber;
-      case 'dropped':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'playing':
-        return Icons.play_arrow;
-      case 'completed':
-        return Icons.check;
-      case 'pending':
-        return Icons.schedule;
-      case 'on_hold':
-        return Icons.pause;
-      case 'dropped':
-        return Icons.close;
-      default:
-        return Icons.help;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    final months = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
+    ],
+  );
+}
 }

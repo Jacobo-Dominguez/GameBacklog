@@ -39,8 +39,8 @@ class GameRemoteDataSource {
     }
   }
 
-  /// Obtener detalles de un juego específico
-  Future<GameSearchResult?> getGameDetails(int gameId) async {
+  /// Obtener detalles de un juego específico (con datos crudos)
+  Future<Map<String, dynamic>?> getGameDetails(int gameId) async {
     try {
       final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.gameDetailEndpoint}/$gameId').replace(
         queryParameters: {
@@ -51,8 +51,7 @@ class GameRemoteDataSource {
       final response = await client.get(uri);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return GameSearchResult.fromJson(data as Map<String, dynamic>);
+        return json.decode(response.body) as Map<String, dynamic>;
       } else {
         return null;
       }
