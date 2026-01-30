@@ -28,29 +28,30 @@ class GameCard extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               // Icono del juego
               Container(
-                width: 60,
-                height: 60,
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
                   color: _getStatusColor(entry.status).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.games,
-                  size: 32,
+                  size: 28,
                   color: _getStatusColor(entry.status),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
 
               // Información del juego
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       game.title,
@@ -60,7 +61,7 @@ class GameCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     if (game.platform != null)
                       Text(
                         '🎮 ${game.platform}',
@@ -68,11 +69,13 @@ class GameCard extends StatelessWidget {
                               color: Colors.grey[600],
                             ),
                       ),
-                    const SizedBox(height: 4),
-                    Row(
+                    const SizedBox(height: 2),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         _buildStatusChip(context),
-                        const SizedBox(width: 8),
                         Text(
                           '⏱️ ${entry.hoursPlayed}h',
                           style: TextStyle(
@@ -80,8 +83,7 @@ class GameCard extends StatelessWidget {
                             color: Colors.grey[600],
                           ),
                         ),
-                        if (entry.rating != null) ...[
-                          const SizedBox(width: 8),
+                        if (entry.rating != null)
                           Text(
                             '⭐ ${entry.rating}/10',
                             style: TextStyle(
@@ -89,7 +91,6 @@ class GameCard extends StatelessWidget {
                               color: Colors.grey[600],
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ],
