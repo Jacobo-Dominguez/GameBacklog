@@ -49,6 +49,7 @@ class GameCard extends StatelessWidget {
         onTap: onEdit,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // Ajuste al contenido
           children: [
             // IMAGEN DE PORTADA
             SizedBox(
@@ -79,112 +80,111 @@ class GameCard extends StatelessWidget {
                     ),
             ),
             
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // TÍTULO Y OPCIONES
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            game.title,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+            // CONTENIDO
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // TÍTULO Y OPCIONES
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          game.title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'edit') onEdit();
+                          if (value == 'delete') onDelete();
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit, size: 20),
+                                SizedBox(width: 8),
+                                Text('Editar'),
+                              ],
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, color: Colors.red, size: 20),
+                                SizedBox(width: 8),
+                                Text('Eliminar', style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                        ],
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.more_vert, size: 20),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 4),
+                  
+                  // PLATAFORMA
+                  if (game.platform != null)
+                    Text(
+                      game.platform!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                  const SizedBox(height: 12),
+                  
+                  // ESTADO Y RATING
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(entry.status).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _getStatusColor(entry.status).withOpacity(0.5),
+                            width: 1,
                           ),
                         ),
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') onEdit();
-                            if (value == 'delete') onDelete();
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Editar'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, color: Colors.red, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Eliminar', style: TextStyle(color: Colors.red)),
-                                ],
+                        child: Text(
+                          _getStatusLabel(entry.status),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: _getStatusColor(entry.status),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (entry.rating != null)
+                        Row(
+                          children: [
+                            const Icon(Icons.star, size: 16, color: Colors.amber),
+                            const SizedBox(width: 4),
+                            Text(
+                              entry.rating.toString(),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(Icons.more_vert, size: 20),
                         ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 4),
-                    
-                    // PLATAFORMA
-                    if (game.platform != null)
-                      Text(
-                        game.platform!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      
-                    const Spacer(),
-                    
-                    // ESTADO Y RATING
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(entry.status).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _getStatusColor(entry.status).withOpacity(0.5),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            _getStatusLabel(entry.status),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: _getStatusColor(entry.status),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        if (entry.rating != null)
-                          Row(
-                            children: [
-                              const Icon(Icons.star, size: 16, color: Colors.amber),
-                              const SizedBox(width: 4),
-                              Text(
-                                entry.rating.toString(),
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

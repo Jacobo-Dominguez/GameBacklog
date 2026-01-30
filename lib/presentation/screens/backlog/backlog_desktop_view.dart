@@ -219,8 +219,8 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                   : GridView.builder(
                       padding: const EdgeInsets.all(16),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 400,
-                        childAspectRatio: 3,
+                        maxCrossAxisExtent: 250,
+                        childAspectRatio: 0.7,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
                       ),
@@ -362,8 +362,8 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                   : GridView.builder(
                       padding: const EdgeInsets.all(16),
                       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 400,
-                        childAspectRatio: 3,
+                        maxCrossAxisExtent: 250,
+                        childAspectRatio: 0.7,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
                       ),
