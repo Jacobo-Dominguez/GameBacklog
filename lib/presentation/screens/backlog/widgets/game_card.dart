@@ -151,37 +151,55 @@ class GameCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(entry.status).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _getStatusColor(entry.status).withOpacity(0.5),
-                            width: 1,
+                      Expanded( // Usar Expanded para el estado si es largo, o mejor dejarlo fijo y mover info a la derecha
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(entry.status).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _getStatusColor(entry.status).withOpacity(0.5),
+                              width: 1,
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          _getStatusLabel(entry.status),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: _getStatusColor(entry.status),
-                            fontWeight: FontWeight.bold,
+                          child: Text(
+                            _getStatusLabel(entry.status),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: _getStatusColor(entry.status),
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
-                      if (entry.rating != null)
-                        Row(
-                          children: [
-                            const Icon(Icons.star, size: 16, color: Colors.amber),
-                            const SizedBox(width: 4),
+                      const SizedBox(width: 8),
+                      // INFO (Horas y Rating)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (entry.hoursPlayed > 0) ...[
+                            const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${entry.hoursPlayed}h',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          if (entry.rating != null) ...[
+                            const Icon(Icons.star, size: 14, color: Colors.amber),
+                            const SizedBox(width: 2),
                             Text(
                               entry.rating.toString(),
-                              style: theme.textTheme.bodyMedium?.copyWith(
+                              style: theme.textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
-                        ),
+                        ],
+                      ),
                     ],
                   ),
                 ],
