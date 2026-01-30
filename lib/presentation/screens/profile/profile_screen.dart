@@ -69,7 +69,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
           children: [
             // Avatar
             CircleAvatar(
@@ -229,6 +232,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
+        ),
+      ),
       ),
     );
   }
