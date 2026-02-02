@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../domain/entities/game.dart';
 import '../../../data/datasources/game_remote_datasource.dart';
 import '../../providers/backlog_provider.dart';
+import '../backlog/widgets/edit_game_dialog.dart'; // Importar diálogo de edición
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -24,7 +25,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   late Game _game;
   bool _isLoading = true;
   bool _isDescriptionExpanded = false;
-  String? _remoteDescription; // ✅ Solo necesitamos la descripción remota
+  String? _remoteDescription;   // Descripción de RAWG
+  List<String>? _remoteGenres;  // Géneros de RAWG
+  String? _remotePlatform;      // Primera plataforma de RAWG
   final _remoteDataSource = GameRemoteDataSource();
 
   @override
@@ -51,18 +54,19 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   Future<void> _loadRemoteDetails() async {
-    // ✅ CORRECCIÓN: getGameDetails() ya devuelve Map, NO usar .toJson()
     if (_game.remoteId != null && (_game.description == null || _game.description!.isEmpty)) {
       try {
-        // Usar búsqueda por nombre (más confiable con key gratuita)
         final results = await _remoteDataSource.searchGames(_game.title);
         if (mounted && results.isNotEmpty) {
+          final firstResult = results.first;
           setState(() {
-            _remoteDescription = results.first.description; // ✅ Descripción directa
+            _remoteDescription = firstResult.description;
+            _remoteGenres = firstResult.genres.isNotEmpty ? firstResult.genres : null;
+            _remotePlatform = firstResult.platforms.isNotEmpty ? firstResult.platforms.first : null;
           });
         }
       } catch (e) {
-        debugPrint('Error loading description: $e');
+        debugPrint('Error loading details: $e');
       }
     }
   }
@@ -93,12 +97,31 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Implementar gestión
+      floatingActionButton: Consumer<BacklogProvider>(
+        builder: (context, provider, child) {
+          // Buscar si el juego ya está en el backlog
+          final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
+              ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
+              : null;
+          
+          if (entry != null) {
+              // MODO EDICIÓN
+              return FloatingActionButton.extended(
+                onPressed: () => _showEditDialog(context, entry, provider),
+                icon: const Icon(Icons.edit),
+                label: const Text('Gestionar'),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+              );
+          } else {
+              // MODO AGREGAR
+              return FloatingActionButton.extended(
+                onPressed: () => _addToBacklog(context, provider),
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar'),
+                backgroundColor: Colors.green,
+              );
+          }
         },
-        icon: const Icon(Icons.edit),
-        label: const Text('Gestionar'),
       ),
     );
   }
@@ -149,14 +172,17 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   Widget _buildHeaderInfo() {
+    // ✅ Prioridad para plataforma: 1) remota, 2) local, 3) none
+    final platformToShow = _remotePlatform ?? _game.platform;
+    
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        if (_game.platform != null && _game.platform!.isNotEmpty)
+        if (platformToShow != null && platformToShow.isNotEmpty)
           Chip(
             avatar: const Icon(Icons.gamepad, size: 16),
-            label: Text(_game.platform!),
+            label: Text(platformToShow),
           ),
         if (_game.releaseDate != null)
           Chip(
@@ -178,97 +204,244 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     return result.trim().isNotEmpty ? result.trim() : 'Sin descripción disponible.';
   }
 
-  Widget _buildDescriptionSection() {
-  // ✅ PRIORIDAD: 1) descripción remota (limpia), 2) descripción local, 3) mensaje predeterminado
-  final descriptionText = _removeHtmlTags(_remoteDescription) != 'Sin descripción disponible.'
-      ? _removeHtmlTags(_remoteDescription)
-      : (_game.description != null && _game.description!.isNotEmpty
-          ? _game.description!
-          : 'Sin descripción disponible.');
+  // ✅ Traductor básico de géneros (inglés → español)
+  String _translateGenre(String genre) {
+    final translations = {
+      'Action': 'Acción',
+      'Adventure': 'Aventura',
+      'RPG': 'RPG',
+      'Shooter': 'Disparos',
+      'Strategy': 'Estrategia',
+      'Simulation': 'Simulación',
+      'Puzzle': 'Puzles',
+      'Racing': 'Carreras',
+      'Sports': 'Deportes',
+      'Fighting': 'Peleas',
+      'Platformer': 'Plataformas',
+      'Horror': 'Terror',
+      'Indie': 'Indie',
+      'Arcade': 'Arcade',
+      'Card': 'Cartas',
+      'Board': 'Tablero',
+      'Family': 'Familiar',
+      'Massively Multiplayer': 'Multijugador masivo',
+      'Point-and-click': 'Apuntar y clicar',
+      'Visual Novel': 'Novela visual',
+      'Turn-based': 'Por turnos',
+      'Tactical': 'Táctico',
+      'Open World': 'Mundo abierto',
+      'Survival': 'Supervivencia',
+      'Stealth': 'Sigilo',
+      'Battle Royale': 'Battle Royale',
+    };
+    
+    return translations[genre.trim()] ?? genre; // Si no hay traducción, mantener original
+  }
 
-  // ✅ Mostrar mensaje amigable si no hay descripción disponible
-  if (descriptionText == 'Sin descripción disponible.') {
+  Widget _buildDescriptionSection() {
+    // ✅ PRIORIDAD para géneros: 1) remoto (traducido), 2) local, 3) vacío
+    List<String> genresToShow = [];
+    
+    if (_remoteGenres != null && _remoteGenres!.isNotEmpty) {
+      genresToShow = _remoteGenres!.map((genre) => _translateGenre(genre)).toList();
+    } else if (_game.genre != null && _game.genre!.isNotEmpty) {
+      genresToShow = [_game.genre!];
+    }
+
+    // ✅ PRIORIDAD para descripción
+    final descriptionText = _removeHtmlTags(_remoteDescription) != 'Sin descripción disponible.'
+        ? _removeHtmlTags(_remoteDescription)
+        : (_game.description != null && _game.description!.isNotEmpty
+            ? _game.description!
+            : 'Sin descripción disponible.');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Acerca del juego', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(12),
+        // ✅ Sección de Géneros (si existen) - ETIQUETA EN BLANCO
+        if (genresToShow.isNotEmpty) ...[
+          Text(
+            'Géneros',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white, // ✅ TEXTO BLANCO PARA FONDO OSCURO
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'ℹ️ Información no disponible',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: genresToShow.map((genre) => 
+              Chip(
+                label: Text(
+                  genre,
+                  style: const TextStyle(
+                    color: Colors.white, // ✅ TEXTO BLANCO
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+                // ✅ ELIMINADO: backgroundColor (para usar el estilo del tema)
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'La descripción detallada requiere una API key premium de RAWG. Con tu key actual solo se muestran datos básicos (nombre, portada, géneros).',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.black),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '💡 Consejo: Puedes editar el juego desde el botón "Gestionar" para añadir tu propia descripción manualmente.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.blue),
-              ),
-            ],
+            ).toList(),
+          ),
+          const SizedBox(height: 28),
+        ],
+        
+        // ✅ Sección de Descripción - ETIQUETA EN BLANCO
+        Text(
+          'Acerca del juego',
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white, // ✅ TEXTO BLANCO PARA FONDO OSCURO
           ),
         ),
+        const SizedBox(height: 14),
+        
+        // ✅ Mostrar mensaje amigable si no hay descripción (CON ALTO CONTRASTE)
+        if (descriptionText == 'Sin descripción disponible.') ...[
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.grey[300]!,
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ℹ️ Información limitada',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87, // ✅ Mantener negro en este caso (fondo claro)
+                    fontSize: 17,
+                  ),
+                ),
+                const SizedBox(height: 11),
+                Text(
+                  'Con tu API key gratuita solo se muestran datos básicos (portada, géneros). La descripción completa requiere key premium de RAWG.',
+                  style: const TextStyle(
+                    color: Colors.black87, // ✅ Mantener negro en este caso (fondo claro)
+                    fontSize: 15,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: '💡 '),
+                      TextSpan(
+                        text: 'Consejo:',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      const TextSpan(text: ' Edita el juego desde "Gestionar" para añadir descripción manualmente.'),
+                    ],
+                  ),
+                  style: const TextStyle(
+                    color: Colors.black87, // ✅ Mantener negro en este caso (fondo claro)
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // ✅ Mostrar descripción normal si está disponible
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isDescriptionExpanded = !_isDescriptionExpanded;
+              });
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  descriptionText,
+                  style: const TextStyle(
+                    color: Colors.white, // ✅ TEXTO BLANCO PARA FONDO OSCURO
+                    fontSize: 16,
+                    height: 1.55,
+                  ),
+                  maxLines: _isDescriptionExpanded ? null : 6,
+                  overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _isDescriptionExpanded ? 'Ver menos' : 'Leer más',
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Icon(
+                        _isDescriptionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        color: Colors.blue,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  // ✅ Mostrar descripción normal (con expandir/colapsar) si está disponible
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('Acerca del juego', style: Theme.of(context).textTheme.titleLarge),
-      const SizedBox(height: 12),
-      InkWell(
-        onTap: () {
-          setState(() {
-            _isDescriptionExpanded = !_isDescriptionExpanded;
-          });
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              descriptionText,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-              maxLines: _isDescriptionExpanded ? null : 6,
-              overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _isDescriptionExpanded ? 'Ver menos' : 'Leer más',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    _isDescriptionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ],
+  void _showEditDialog(BuildContext context, dynamic entry, BacklogProvider provider) {
+      showDialog(
+        context: context,
+        builder: (context) => EditGameDialog(
+          entry: entry,
+          game: _game,
+          onUpdate: ({status, hoursPlayed, rating, notes}) async {
+            final success = await provider.updateGameEntry(
+              entryId: entry.id,
+              status: status,
+              hoursPlayed: hoursPlayed,
+              rating: rating,
+              notes: notes,
+            );
+
+            if (success && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Juego actualizado')),
+              );
+              setState(() {}); 
+            }
+          },
         ),
-      ),
-    ],
-  );
-}
+      );
+  }
+
+  Future<void> _addToBacklog(BuildContext context, BacklogProvider provider) async {
+      final success = await provider.addGameFromSearch(_game);
+      if (success && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Juego agregado al backlog')),
+          );
+      }
+  }
 }
