@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backlog_provider.dart';
 import '../../../data/datasources/game_remote_datasource.dart';
+import '../../../domain/entities/game_search_result.dart';
 import '../../../data/services/game_search_service.dart';
-import '../../../domain/entities/game_search_result.dart'; // ✅ Ruta correcta
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -37,13 +37,11 @@ class _SearchScreenState extends State<SearchScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _addGameToBacklog(GameSearchResult rawgGame) async {
+  Future<void> _addGameToBacklog(GameSearchResult gameResult) async {
     final authProvider = context.read<AuthProvider>();
     final backlogProvider = context.read<BacklogProvider?>();
     
@@ -57,27 +55,48 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     try {
-      // Convertir resultado RAWG a modelo local
-      final localGame = _searchService.fromRawgResult(
-        rawgGame, 
-        authProvider.currentUser!.id,
-      );
+      // ✅ Conversión segura a Map para fromIgdbResult
+      final releaseDate = gameResult.released != null 
+          ? DateTime.tryParse(gameResult.released!)
+          : null;
+      
+      final igdbMap = <String, dynamic>{
+        'id': gameResult.id,
+        'name': gameResult.name,
+        'summary': gameResult.description,
+        'genres': gameResult.genres.map((g) => {'name': g}).toList(),
+        'platforms': gameResult.platforms.map((p) => {'name': p}).toList(),
+      };
 
-      // Guardar en DB y agregar al backlog
-      final success = await backlogProvider.addGameFromSearch(localGame);
+      // ✅ Agregar cover si existe
+      if (gameResult.backgroundImage != null) {
+        igdbMap['cover'] = {
+          'url': gameResult.backgroundImage!.replaceAll('https:', '')
+        };
+      }
+
+      // ✅ Agregar fecha de lanzamiento si existe
+      if (releaseDate != null) {
+        igdbMap['first_release_date'] = releaseDate.millisecondsSinceEpoch ~/ 1000;
+      }
+
+      // ✅ Convertir a Game usando el servicio
+      final game = _searchService.fromIgdbResult(igdbMap, authProvider.currentUser!.id);
+
+      // ✅ Usar API pública del provider
+      final success = await backlogProvider.addGameFromSearch(game);
       
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ ${localGame.title} agregado al backlog')),
+          SnackBar(content: Text('✅ ${game.title} agregado al backlog')),
         );
-        // Opcional: limpiar búsqueda después de agregar
         setState(() {
           _results = [];
           _controller.clear();
         });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Ya existe en tu backlog o error al guardar')),
+          const SnackBar(content: Text('❌ Ya existe en tu backlog')),
         );
       }
     } catch (e) {
@@ -99,7 +118,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Buscar juegos'),
+        title: const Text('Buscar en IGDB'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
@@ -111,10 +130,12 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _controller,
-              decoration: const InputDecoration(
-                hintText: 'Buscar en RAWG...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                hintText: 'Buscar juegos...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onSubmitted: _search,
               autofocus: true,
@@ -124,12 +145,26 @@ class _SearchScreenState extends State<SearchScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _results.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text(
-                            'Escribe para buscar juegos...',
-                            style: TextStyle(color: Colors.grey),
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _controller.text.isEmpty ? Icons.search : Icons.search_off,
+                                size: 64,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _controller.text.isEmpty 
+                                    ? 'Escribe para buscar juegos en IGDB...'
+                                    : 'No se encontraron resultados para "${_controller.text}"',
+                                style: const TextStyle(color: Colors.grey, fontSize: 16),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
                       )
@@ -159,12 +194,12 @@ class _SearchScreenState extends State<SearchScreen> {
                                 children: [
                                   if (game.released != null)
                                     Text(
-                                      'Lanzado: ${game.released}',
+                                      'Lanzado: ${DateTime.tryParse(game.released!)?.year ?? '?'}',
                                       style: const TextStyle(fontSize: 12),
                                     ),
-                                  if (game.rating != null)
-                                    Text( // ✅ FIX: null safety para toStringAsFixed
-                                      '⭐ ${game.rating!.toStringAsFixed(1)}',
+                                  if (game.genres.isNotEmpty)
+                                    Text(
+                                      'Géneros: ${game.genres.take(2).join(', ')}',
                                       style: const TextStyle(fontSize: 12),
                                     ),
                                 ],

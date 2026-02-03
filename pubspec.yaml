@@ -17,10 +17,7 @@ dependencies:
   path_provider: ^2.1.1
   path: ^1.8.3
 
-  # Renderizado HTML para descripciones de RAWG
-  #flutter_html: ^3.0.0
-  
-  # Para abrir enlaces web (sitio oficial del juego)
+  # Para abrir enlaces web
   url_launcher: ^6.2.0
 
   # Navegación
@@ -37,8 +34,8 @@ dependencies:
   crypto: ^3.0.3
   shared_preferences: ^2.2.2
   
-  # API y networking
-  http: ^1.1.0
+  # API y networking (oauth2 NO es necesario para IGDB)
+  http: ^1.1.0  # ✅ SOLO http es suficiente
   
   # Imágenes de red con cache
   cached_network_image: ^3.3.0

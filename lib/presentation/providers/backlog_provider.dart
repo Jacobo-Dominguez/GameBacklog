@@ -140,59 +140,59 @@ class BacklogProvider with ChangeNotifier {
     }
   }
 
-  /// ✅ NUEVO MÉTODO: Agregar juego desde búsqueda RAWG
-  Future<bool> addGameFromSearch(Game game) async {
-    try {
-      // Verificar si ya existe en el backlog (por remoteId o título)
-      if (game.remoteId != null) {
-        final existing = _backlogEntries.any(
-          (e) => _gamesMap[e.gameId]?.remoteId == game.remoteId,
-        );
-        if (existing) return false; // Ya existe
-      }
-
-      // Guardar juego en DB local
-      final gameModel = GameModel(
-        id: game.id,
-        title: game.title,
-        platform: game.platform,
-        genre: game.genre,
-        releaseDate: game.releaseDate,
-        coverUrl: game.coverUrl,
-        description: game.description,
-        remoteId: game.remoteId,
-        createdAt: game.createdAt,
-        updatedAt: game.updatedAt,
-        userId: game.userId,
+// lib/presentation/providers/backlog_provider.dart
+Future<bool> addGameFromSearch(Game game) async {
+  try {
+    // Verificar si ya existe en el backlog
+    if (game.remoteId != null) {
+      final existing = _backlogEntries.any(
+        (e) => _gamesMap[e.gameId]?.remoteId == game.remoteId,
       );
-      
-      await gameDataSource.insertGame(gameModel);
-
-      // Crear entrada en backlog
-      final backlogEntry = GameBacklogModel(
-        id: const Uuid().v4(),
-        userId: userId,
-        gameId: game.id,
-        status: 'pending', // Estado por defecto
-        hoursPlayed: 0,
-        addedDate: DateTime.now(),
-        lastUpdated: DateTime.now(),
-      );
-
-      await backlogDataSource.insertBacklogEntry(backlogEntry);
-
-      // Actualizar estado local
-      _backlogEntries.add(backlogEntry);
-      _gamesMap[game.id] = game;
-      await _loadStats();
-      notifyListeners();
-
-      return true;
-    } catch (e) {
-      debugPrint('Error adding game from search: $e');
-      return false;
+      if (existing) return false;
     }
+
+    // Guardar juego en DB local
+    final gameModel = GameModel(
+      id: game.id,
+      title: game.title,
+      platform: game.platform,
+      genre: game.genre,
+      releaseDate: game.releaseDate,
+      coverUrl: game.coverUrl,
+      description: game.description,
+      remoteId: game.remoteId,
+      createdAt: game.createdAt,
+      updatedAt: game.updatedAt,
+      userId: game.userId,
+    );
+    
+    await gameDataSource.insertGame(gameModel);
+
+    // Crear entrada en backlog
+    final backlogEntry = GameBacklogModel(
+      id: const Uuid().v4(),
+      userId: userId,
+      gameId: game.id,
+      status: 'pending',
+      hoursPlayed: 0,
+      addedDate: DateTime.now(),
+      lastUpdated: DateTime.now(),
+    );
+
+    await backlogDataSource.insertBacklogEntry(backlogEntry);
+
+    // Actualizar estado local (SOLO DENTRO DEL PROVIDER)
+    _backlogEntries.add(backlogEntry);
+    _gamesMap[game.id] = game;
+    await _loadStats();
+    notifyListeners();
+
+    return true;
+  } catch (e) {
+    debugPrint('Error adding game from search: $e');
+    return false;
   }
+}
 
   Future<bool> updateGameEntry({
     required String entryId,

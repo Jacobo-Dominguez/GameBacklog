@@ -66,10 +66,10 @@ class AppRouter {
       ),
       // ✅ NUEVA RUTA DE BÚSQUEDA (SIN const)
       GoRoute(
-        path: '/search',
-        name: 'search',
-        builder: (context, state) => SearchScreen(), // ❌ NO USAR const aquí
-      ),
+  path: '/search',
+  name: 'search',
+  builder: (context, state) => const SearchScreen(),
+),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

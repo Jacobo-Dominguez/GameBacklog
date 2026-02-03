@@ -1,107 +1,67 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../../core/config/api_config.dart';
+import 'dart:async'; // ✅ IMPORTANTE: Agregado para Future
 import '../../domain/entities/game_search_result.dart';
+import '../services/igdb_service.dart';
 
 class GameRemoteDataSource {
-  final http.Client client;
+  final IGDBService _igdbService;
 
-  GameRemoteDataSource({http.Client? client}) : client = client ?? http.Client();
+  GameRemoteDataSource({IGDBService? igdbService}) 
+      : _igdbService = igdbService ?? IGDBService();
 
-  /// Buscar juegos por nombre
-  Future<List<GameSearchResult>> searchGames(String query) async {
+  Future<List<Map<String, dynamic>>> searchGamesRaw(String query) async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.gamesEndpoint}').replace(
-        queryParameters: {
-          'key': ApiConfig.apiKey,
-          'search': query,
-          'page_size': ApiConfig.pageSize.toString(),
-          'ordering': ApiConfig.ordering,
-        },
-      );
-
-      final response = await client.get(uri);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final results = data['results'] as List<dynamic>;
-        
-        return results
-            .map((json) => GameSearchResult.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else if (response.statusCode == 401) {
-        throw Exception('API Key inválida. Por favor, configura tu API key en api_config.dart');
-      } else {
-        throw Exception('Error al buscar juegos: ${response.statusCode}');
-      }
+      return await _igdbService.searchGames(query);
     } catch (e) {
-      throw Exception('Error de conexión: $e');
+      print('Error IGDB raw: $e');
+      return [];
     }
   }
 
-  /// Obtener detalles de un juego específico (con datos crudos)
+  Future<List<GameSearchResult>> searchGames(String query) async {
+    try {
+      final rawResults = await _igdbService.searchGames(query);
+      
+      return rawResults.map((json) {
+        String? coverUrl;
+        if (json['cover'] != null && json['cover']['url'] != null) {
+          String rawUrl = json['cover']['url'];
+          rawUrl = rawUrl.replaceAll('t_thumb', 't_cover_big');
+          coverUrl = 'https:$rawUrl';
+        }
+
+        return GameSearchResult(
+          id: json['id'] as int,
+          name: json['name'] as String,
+          backgroundImage: coverUrl,
+          released: json['first_release_date'] != null 
+              ? DateTime.fromMillisecondsSinceEpoch(json['first_release_date'] * 1000).toString()
+              : null,
+          platforms: (json['platforms'] as List?)?.map((p) => p['name'] as String).toList() ?? [],
+          genres: (json['genres'] as List?)?.map((g) => g['name'] as String).toList() ?? [],
+          description: json['summary'] ?? json['storyline'], // ✅ Usar ambos campos
+        );
+      }).toList();
+    } catch (e) {
+      print('Error searchGames: $e');
+      throw Exception('Error al buscar juegos: $e'); // Rethrow para que la UI lo muestre
+    }
+  }
+
   Future<Map<String, dynamic>?> getGameDetails(int gameId) async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.gameDetailEndpoint}/$gameId').replace(
-        queryParameters: {
-          'key': ApiConfig.apiKey,
-        },
-      );
-
-      final response = await client.get(uri);
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body) as Map<String, dynamic>;
-      } else {
-        return null;
-      }
+      return await _igdbService.getGameById(gameId);
     } catch (e) {
+      print('Error getGameDetails: $e');
       return null;
     }
   }
 
-  /// Obtener juegos populares
-  Future<List<GameSearchResult>> getPopularGames({int page = 1}) async {
-    try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.gamesEndpoint}').replace(
-        queryParameters: {
-          'key': ApiConfig.apiKey,
-          'page': page.toString(),
-          'page_size': ApiConfig.pageSize.toString(),
-          'ordering': ApiConfig.ordering,
-        },
-      );
-
-      final response = await client.get(uri);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final results = data['results'] as List<dynamic>;
-        
-        return results
-            .map((json) => GameSearchResult.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        throw Exception('Error al obtener juegos populares: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  /// Verificar conectividad con la API
   Future<bool> testConnection() async {
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.gamesEndpoint}').replace(
-        queryParameters: {
-          'key': ApiConfig.apiKey,
-          'page_size': '1',
-        },
-      );
-
-      final response = await client.get(uri);
-      return response.statusCode == 200;
+      final results = await _igdbService.searchGames('Mario');
+      return results.isNotEmpty;
     } catch (e) {
+      print('Connection test failed: $e');
       return false;
     }
   }
