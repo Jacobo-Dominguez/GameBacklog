@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/backlog_provider.dart'; // ✅ Nuevo
 import '../../../data/datasources/game_backlog_local_datasource_impl.dart';
 import '../../../data/datasources/database_helper.dart';
 
@@ -51,6 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final backlogProvider = context.watch<BacklogProvider>();
     final user = authProvider.currentUser;
 
     if (user == null) {
@@ -59,193 +61,239 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
+    final favorites = backlogProvider.backlogEntries
+        .where((e) => e.isFavorite)
+        .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mi Perfil'),
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
+            constraints: const BoxConstraints(maxWidth: 800),
             child: Column(
               children: [
-                // Avatar
-                CircleAvatar(
-                  radius: 60,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Text(
-                    user.username[0].toUpperCase(),
-                    style: const TextStyle(fontSize: 48, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Nombre de usuario
-                Text(
-                  user.username,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-
-                // Email
-                Text(
-                  user.email,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
-                const SizedBox(height: 8),
-
-                // Fecha de registro
-                Text(
-                  'Miembro desde ${_formatDate(user.createdAt)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[500],
-                      ),
-                ),
+                // Header del Perfil
+                _buildProfileHeader(context, user),
                 const SizedBox(height: 32),
 
+                // Sección de Favoritos (NUEVO)
+                if (favorites.isNotEmpty) ...[
+                  _buildFavoritesSection(context, favorites, backlogProvider.gamesMap),
+                  const SizedBox(height: 32),
+                ],
+
                 // Estadísticas del backlog
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Estadísticas del Backlog',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_isLoadingStats)
-                          const Center(child: CircularProgressIndicator())
-                        else if (_stats.isEmpty)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: Text(
-                                'Aún no tienes juegos en tu backlog',
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                          )
-                        else
-                          Column(
-                            children: [
-                              _buildStatRow(
-                                context,
-                                '🎮 Jugando',
-                                _stats['playing'] ?? 0,
-                                Colors.blue,
-                              ),
-                              const Divider(),
-                              _buildStatRow(
-                                context,
-                                '✅ Completados',
-                                _stats['completed'] ?? 0,
-                                Colors.green,
-                              ),
-                              const Divider(),
-                              _buildStatRow(
-                                context,
-                                '⏳ Pendientes',
-                                _stats['pending'] ?? 0,
-                                Colors.orange,
-                              ),
-                              const Divider(),
-                              _buildStatRow(
-                                context,
-                                '⏸️ En pausa',
-                                _stats['on_hold'] ?? 0,
-                                Colors.amber,
-                              ),
-                              const Divider(),
-                              _buildStatRow(
-                                context,
-                                '❌ Abandonados',
-                                _stats['dropped'] ?? 0,
-                                Colors.red,
-                              ),
-                              const Divider(height: 24),
-                              _buildStatRow(
-                                context,
-                                '📊 Total',
-                                _stats.values.fold(0, (sum, count) => sum + count),
-                                Theme.of(context).colorScheme.primary,
-                                isBold: true,
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                _buildStatsCard(context, backlogProvider),
+                const SizedBox(height: 32),
 
-                // Botón de cerrar sesión
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final shouldLogout = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Cerrar sesión'),
-                        content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancelar'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Cerrar sesión'),
-                          ),
-                        ],
-                      ),
-                    );
-
-                    if (shouldLogout == true && mounted) {
-                      await authProvider.logout();
-                      if (mounted) {
-                        context.go('/login');
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Cerrar Sesión'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Botón de prueba de API (temporal para desarrollo)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    context.push('/api-test');
-                  },
-                  icon: const Icon(Icons.cloud),
-                  label: const Text('🧪 Probar API RAWG'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
+                // Acciones de Usuario
+                _buildAccountActions(context, authProvider),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildProfileHeader(BuildContext context, dynamic user) {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 60,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          child: Text(
+            user.username[0].toUpperCase(),
+            style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          user.username,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        Text(
+          user.email,
+          style: TextStyle(color: Colors.grey[400], fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Miembro desde ${_formatDate(user.createdAt)}',
+          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFavoritesSection(BuildContext context, List<dynamic> favorites, Map<String, dynamic> gamesMap) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'Juegos Favoritos ❤️',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollDirection: Axis.horizontal,
+            itemCount: favorites.length,
+            itemBuilder: (context, index) {
+              final entry = favorites[index];
+              final game = gamesMap[entry.gameId];
+              if (game == null) return const SizedBox.shrink();
+
+              return GestureDetector(
+                onTap: () => context.go('/game/${game.id}'),
+                child: Container(
+                  width: 130,
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: game.coverUrl != null && game.coverUrl.isNotEmpty
+                              ? Image.network(game.coverUrl!, fit: BoxFit.cover, width: double.infinity)
+                              : Container(color: Colors.grey[800], child: const Icon(Icons.videogame_asset)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        game.title,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsCard(BuildContext context, BacklogProvider provider) {
+    final stats = provider.stats;
+    final total = provider.getTotalGames();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tu Backlog en cifras',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              if (total == 0)
+                const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No hay juegos añadidos aún.', style: TextStyle(color: Colors.grey))))
+              else
+                Column(
+                  children: [
+                    _buildStatRow(context, '🎮 Jugando ahora', stats['playing'] ?? 0, Colors.blue),
+                    const Divider(height: 24),
+                    _buildStatRow(context, '✅ Completados', stats['completed'] ?? 0, Colors.green),
+                    const Divider(height: 24),
+                    _buildStatRow(context, '⏳ Pendientes', stats['pending'] ?? 0, Colors.orange),
+                    const Divider(height: 24),
+                    _buildStatRow(context, '⏸️ En pausa', stats['on_hold'] ?? 0, Colors.amber),
+                    const Divider(height: 24),
+                    _buildStatRow(context, '❌ Abandonados', stats['dropped'] ?? 0, Colors.red),
+                    const SizedBox(height: 20),
+                    Container(
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(
+                         color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                         borderRadius: BorderRadius.circular(12),
+                       ),
+                       child: Row(
+                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total de Juegos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text('$total', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
+                        ],
+                       ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountActions(BuildContext context, AuthProvider authProvider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+           OutlinedButton.icon(
+            onPressed: () => context.push('/api-test'),
+            icon: const Icon(Icons.bug_report_outlined),
+            label: const Text('Dev Tools: Probar API'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: () => _handleLogout(context, authProvider),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Cerrar Sesión'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.withOpacity(0.8),
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context, AuthProvider authProvider) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Cerrar sesión?'),
+        content: const Text('Tu backlog se mantendrá guardado localmente.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí, salir')),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && context.mounted) {
+      await authProvider.logout();
+      if (context.mounted) context.go('/login');
+    }
   }
 
   Widget _buildStatRow(

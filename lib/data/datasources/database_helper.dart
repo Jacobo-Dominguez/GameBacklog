@@ -28,7 +28,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -36,18 +36,19 @@ class DatabaseHelper {
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 2) {
-    // Agregar columnas con valores por defecto SEGURAS
     await db.execute('ALTER TABLE games ADD COLUMN coverUrl TEXT');
     await db.execute('ALTER TABLE games ADD COLUMN description TEXT');
     await db.execute('ALTER TABLE games ADD COLUMN remoteId INTEGER');
-    
-    // userId: usar un valor temporal que luego se corrija en auth
     await db.execute("ALTER TABLE games ADD COLUMN userId TEXT NOT NULL DEFAULT 'migrated_user'");
-    
-    // updatedAt: copiar createdAt o usar timestamp actual
     await db.execute('ALTER TABLE games ADD COLUMN updatedAt TEXT');
-    // Opcional: actualizar updatedAt = createdAt para registros existentes
     await db.execute("UPDATE games SET updatedAt = IFNULL(releaseDate, datetime('now')) WHERE updatedAt IS NULL OR updatedAt = ''");
+  }
+  
+  if (oldVersion < 3) {
+    // Migración a versión 3: Reseñas y Favoritos
+    await db.execute('ALTER TABLE game_backlog ADD COLUMN is_favorite INTEGER DEFAULT 0');
+    await db.execute('ALTER TABLE game_backlog ADD COLUMN review_title TEXT');
+    await db.execute('ALTER TABLE game_backlog ADD COLUMN is_spoiler INTEGER DEFAULT 0');
   }
 }
 
@@ -87,7 +88,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Tabla game_backlog
+    // Tabla game_backlog - v3
     await db.execute('''
       CREATE TABLE game_backlog (
         id $idType,
@@ -97,6 +98,9 @@ class DatabaseHelper {
         hours_played $intType DEFAULT 0,
         rating $intTypeNullable CHECK(rating >= 0 AND rating <= 10),
         notes $textTypeNullable,
+        is_favorite $intType DEFAULT 0,
+        review_title $textTypeNullable,
+        is_spoiler $intType DEFAULT 0,
         added_date $textType,
         completed_date $textTypeNullable,
         last_updated $textType,

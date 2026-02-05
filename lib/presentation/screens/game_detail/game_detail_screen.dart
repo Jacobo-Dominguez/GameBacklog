@@ -6,6 +6,8 @@ import '../../../domain/entities/game.dart';
 import '../../../data/datasources/game_remote_datasource.dart';
 import '../../providers/backlog_provider.dart';
 import '../backlog/widgets/edit_game_dialog.dart';
+import '../backlog/widgets/review_dialog.dart'; // ✅ Nuevo
+import '../../../domain/entities/game_backlog_entry.dart'; // ✅ Nuevo
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -150,6 +152,26 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     return SliverAppBar(
       expandedHeight: 300.0,
       pinned: true,
+      actions: [
+        // ✅ Botón de Favorito
+        Consumer<BacklogProvider>(
+          builder: (context, provider, _) {
+            final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
+                ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
+                : null;
+            
+            if (entry == null) return const SizedBox.shrink();
+            
+            return IconButton(
+              icon: Icon(
+                entry.isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: entry.isFavorite ? Colors.red : Colors.white,
+              ),
+              onPressed: () => provider.toggleFavorite(entry.id),
+            );
+          },
+        ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         title: Text(
           _game.title,
@@ -275,8 +297,107 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   const SizedBox(height: 24),
                   _buildMediaSection(), // Galería de screenshots
               ],
+
+              // ✅ Nueva Sección de Reseña Personal
+              const SizedBox(height: 40),
+              _buildReviewSection(),
+              const SizedBox(height: 20),
           ],
       );
+  }
+
+  Widget _buildReviewSection() {
+    return Consumer<BacklogProvider>(
+      builder: (context, provider, _) {
+        final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
+            ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
+            : null;
+
+        if (entry == null) return const SizedBox.shrink();
+
+        final hasReview = (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty) || 
+                         (entry.notes != null && entry.notes!.isNotEmpty);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(hasReview ? 'Tu Reseña' : 'Sin Reseña', 
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+            const SizedBox(height: 12),
+            Card(
+              color: Colors.grey[900],
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text(
+                      entry.reviewTitle!,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                  ),
+                    if (entry.isSpoiler)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
+                            SizedBox(width: 4),
+                            Text('SPOILERS', style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    Text(
+                      entry.notes?.isNotEmpty == true 
+                          ? entry.notes! 
+                          : 'Aún no has escrito una reseña.',
+                      style: TextStyle(
+                        color: entry.notes?.isNotEmpty == true ? Colors.white70 : Colors.grey,
+                        fontStyle: entry.notes?.isNotEmpty == true ? null : FontStyle.italic,
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showReviewDialog(context, entry),
+                        icon: Icon(hasReview ? Icons.edit : Icons.add_comment),
+                        label: Text(hasReview ? 'Editar Reseña' : 'Escribir Reseña'),
+                        style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showReviewDialog(BuildContext context, GameBacklogEntry entry) {
+    showDialog(
+      context: context,
+      builder: (context) => ReviewDialog(
+        entryId: entry.id,
+        initialTitle: entry.reviewTitle,
+        initialContent: entry.notes,
+        initialIsSpoiler: entry.isSpoiler,
+      ),
+    );
   }
 
   Widget _buildIgdbStats() {

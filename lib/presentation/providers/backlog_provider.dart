@@ -121,6 +121,9 @@ class BacklogProvider with ChangeNotifier {
         gameId: game.id,
         status: status,
         hoursPlayed: 0,
+        isFavorite: false,
+        reviewTitle: null,
+        isSpoiler: false,
         addedDate: DateTime.now(),
         lastUpdated: DateTime.now(),
       );
@@ -175,6 +178,9 @@ Future<bool> addGameFromSearch(Game game) async {
       gameId: game.id,
       status: 'pending',
       hoursPlayed: 0,
+      isFavorite: false,
+      reviewTitle: null,
+      isSpoiler: false,
       addedDate: DateTime.now(),
       lastUpdated: DateTime.now(),
     );
@@ -194,6 +200,47 @@ Future<bool> addGameFromSearch(Game game) async {
   }
 }
 
+  Future<bool> updateReview({
+    required String entryId,
+    required String? title,
+    required String? content,
+    required bool isSpoiler,
+  }) async {
+    try {
+      final entry = _backlogEntries.firstWhere((e) => e.id == entryId);
+      
+      final updatedEntry = GameBacklogModel(
+        id: entry.id,
+        userId: entry.userId,
+        gameId: entry.gameId,
+        status: entry.status,
+        hoursPlayed: entry.hoursPlayed,
+        rating: entry.rating,
+        notes: content,
+        isFavorite: entry.isFavorite,
+        reviewTitle: title,
+        isSpoiler: isSpoiler,
+        addedDate: entry.addedDate,
+        completedDate: entry.completedDate,
+        lastUpdated: DateTime.now(),
+      );
+
+      await backlogDataSource.updateBacklogEntry(updatedEntry);
+
+      // Actualizar estado local
+      final index = _backlogEntries.indexWhere((e) => e.id == entryId);
+      if (index != -1) {
+        _backlogEntries[index] = updatedEntry;
+      }
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error updating review: $e');
+      return false;
+    }
+  }
+
   Future<bool> updateGameEntry({
     required String entryId,
     String? status,
@@ -212,6 +259,9 @@ Future<bool> addGameFromSearch(Game game) async {
         hoursPlayed: hoursPlayed ?? entry.hoursPlayed,
         rating: rating ?? entry.rating,
         notes: notes ?? entry.notes,
+        isFavorite: entry.isFavorite,
+        reviewTitle: entry.reviewTitle,
+        isSpoiler: entry.isSpoiler,
         addedDate: entry.addedDate,
         completedDate: status == 'completed' ? DateTime.now() : entry.completedDate,
         lastUpdated: DateTime.now(),
@@ -232,6 +282,40 @@ Future<bool> addGameFromSearch(Game game) async {
     } catch (e) {
       debugPrint('Error updating game entry: $e');
       return false;
+    }
+  }
+
+  Future<void> toggleFavorite(String entryId) async {
+    try {
+      final entry = _backlogEntries.firstWhere((e) => e.id == entryId);
+      
+      final updatedEntry = GameBacklogModel(
+        id: entry.id,
+        userId: entry.userId,
+        gameId: entry.gameId,
+        status: entry.status,
+        hoursPlayed: entry.hoursPlayed,
+        rating: entry.rating,
+        notes: entry.notes,
+        isFavorite: !entry.isFavorite,
+        reviewTitle: entry.reviewTitle,
+        isSpoiler: entry.isSpoiler,
+        addedDate: entry.addedDate,
+        completedDate: entry.completedDate,
+        lastUpdated: DateTime.now(),
+      );
+
+      await backlogDataSource.updateBacklogEntry(updatedEntry);
+
+      // Actualizar estado local
+      final index = _backlogEntries.indexWhere((e) => e.id == entryId);
+      if (index != -1) {
+        _backlogEntries[index] = updatedEntry;
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling favorite: $e');
     }
   }
 

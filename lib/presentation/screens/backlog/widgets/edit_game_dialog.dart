@@ -27,7 +27,6 @@ class EditGameDialog extends StatefulWidget {
 class _EditGameDialogState extends State<EditGameDialog> {
   final _formKey = GlobalKey<FormState>();
   final _hoursController = TextEditingController();
-  final _notesController = TextEditingController();
   late String _selectedStatus;
   int? _selectedRating;
 
@@ -36,14 +35,12 @@ class _EditGameDialogState extends State<EditGameDialog> {
     super.initState();
     _selectedStatus = widget.entry.status;
     _hoursController.text = widget.entry.hoursPlayed.toString();
-    _notesController.text = widget.entry.notes ?? '';
     _selectedRating = widget.entry.rating;
   }
 
   @override
   void dispose() {
     _hoursController.dispose();
-    _notesController.dispose();
     super.dispose();
   }
 
@@ -127,19 +124,6 @@ class _EditGameDialogState extends State<EditGameDialog> {
                   );
                 }),
               ),
-              const SizedBox(height: 16),
-
-              // Notas
-              TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Notas (opcional)',
-                  prefixIcon: Icon(Icons.note),
-                  border: OutlineInputBorder(),
-                  hintText: 'Tus impresiones sobre el juego...',
-                ),
-                maxLines: 3,
-              ),
             ],
           ),
         ),
@@ -156,9 +140,6 @@ class _EditGameDialogState extends State<EditGameDialog> {
                 status: _selectedStatus,
                 hoursPlayed: int.parse(_hoursController.text),
                 rating: _selectedRating,
-                notes: _notesController.text.trim().isEmpty
-                    ? null
-                    : _notesController.text.trim(),
               );
               Navigator.pop(context);
             }
