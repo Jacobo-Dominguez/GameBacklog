@@ -39,6 +39,9 @@ dependencies:
   
   # Imágenes de red con cache
   cached_network_image: ^3.3.0
+  
+  # Calendario para el diario
+  table_calendar: ^3.0.9
 dev_dependencies:
   flutter_test:
     sdk: flutter
