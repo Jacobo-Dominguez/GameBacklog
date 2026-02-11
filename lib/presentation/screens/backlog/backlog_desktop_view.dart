@@ -40,6 +40,8 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                 context.push('/search');
               } else if (index == 3) {
                 context.go('/profile');
+              } else if (index == 4) {
+                context.push('/journal');
               } else {
                 setState(() {
                   _selectedIndex = index;
@@ -85,8 +87,13 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: Text('Perfil'),
+                selectedIcon: const Icon(Icons.person),
+                label: const Text('Perfil'),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.calendar_month_outlined),
+                selectedIcon: const Icon(Icons.calendar_month),
+                label: const Text('Diario'),
               ),
             ],
           ),
