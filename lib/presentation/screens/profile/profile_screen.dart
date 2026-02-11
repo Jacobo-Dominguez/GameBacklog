@@ -238,6 +238,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                        ),
                     ),
+                    const SizedBox(height: 12),
+                    Container(
+                       padding: const EdgeInsets.all(16),
+                       decoration: BoxDecoration(
+                         color: Colors.blue.withOpacity(0.1),
+                         borderRadius: BorderRadius.circular(12),
+                       ),
+                       child: Row(
+                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Tiempo Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text('${provider.getTotalMinutesPlayed()} min', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                        ],
+                       ),
+                    ),
                   ],
                 ),
             ],
