@@ -6,9 +6,11 @@ class GameBacklogEntry {
   final int hoursPlayed;
   final int? rating;
   final String? notes;
-  final bool isFavorite; // ✅ Nuevo
-  final String? reviewTitle; // ✅ Nuevo
-  final bool isSpoiler; // ✅ Nuevo
+  final bool isFavorite; 
+  final String? reviewTitle; 
+  final bool isSpoiler; 
+  final DateTime? startDate;
+  final DateTime? endDate;
   final DateTime addedDate;
   final DateTime? completedDate;
   final DateTime lastUpdated;
@@ -24,6 +26,8 @@ class GameBacklogEntry {
     this.isFavorite = false,
     this.reviewTitle,
     this.isSpoiler = false,
+    this.startDate,
+    this.endDate,
     required this.addedDate,
     this.completedDate,
     required this.lastUpdated,
