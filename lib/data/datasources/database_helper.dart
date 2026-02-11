@@ -28,7 +28,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -44,12 +44,31 @@ class DatabaseHelper {
     await db.execute("UPDATE games SET updatedAt = IFNULL(releaseDate, datetime('now')) WHERE updatedAt IS NULL OR updatedAt = ''");
   }
   
-  if (oldVersion < 3) {
-    // Migración a versión 3: Reseñas y Favoritos
-    await db.execute('ALTER TABLE game_backlog ADD COLUMN is_favorite INTEGER DEFAULT 0');
-    await db.execute('ALTER TABLE game_backlog ADD COLUMN review_title TEXT');
-    await db.execute('ALTER TABLE game_backlog ADD COLUMN is_spoiler INTEGER DEFAULT 0');
-  }
+    if (oldVersion < 3) {
+      // Migración a versión 3: Reseñas y Favoritos
+      await db.execute('ALTER TABLE game_backlog ADD COLUMN is_favorite INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE game_backlog ADD COLUMN review_title TEXT');
+      await db.execute('ALTER TABLE game_backlog ADD COLUMN is_spoiler INTEGER DEFAULT 0');
+    }
+
+    if (oldVersion < 4) {
+      // Migración a versión 4: Diario y Sesiones
+      await db.execute('ALTER TABLE game_backlog ADD COLUMN start_date TEXT');
+      await db.execute('ALTER TABLE game_backlog ADD COLUMN end_date TEXT');
+      
+      await db.execute('''
+        CREATE TABLE game_sessions (
+          id TEXT PRIMARY KEY,
+          game_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          session_date TEXT NOT NULL,
+          duration_minutes INTEGER NOT NULL,
+          description TEXT,
+          FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      ''');
+    }
 }
 
   Future<void> _createDB(Database db, int version) async {
@@ -101,12 +120,28 @@ class DatabaseHelper {
         is_favorite $intType DEFAULT 0,
         review_title $textTypeNullable,
         is_spoiler $intType DEFAULT 0,
+        start_date $textTypeNullable,
+        end_date $textTypeNullable,
         added_date $textType,
         completed_date $textTypeNullable,
         last_updated $textType,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
         UNIQUE(user_id, game_id)
+      )
+    ''');
+
+    // Tabla game_sessions - v4
+    await db.execute('''
+      CREATE TABLE game_sessions (
+        id $idType,
+        game_id $textType,
+        user_id $textType,
+        session_date $textType,
+        duration_minutes $intType,
+        description $textTypeNullable,
+        FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     ''');
 
