@@ -5,7 +5,8 @@ import '../presentation/screens/backlog/backlog_screen.dart';
 import '../presentation/screens/profile/profile_screen.dart';
 import '../presentation/screens/game_detail/game_detail_screen.dart';
 import '../presentation/screens/api_test/api_test_screen.dart';
-import '../presentation/screens/search/search_screen.dart'; // ✅ IMPORTAR SearchScreen
+import '../presentation/screens/search/search_screen.dart';
+import '../presentation/screens/journal/journal_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 
 class AppRouter {
@@ -69,6 +70,11 @@ class AppRouter {
   path: '/search',
   name: 'search',
   builder: (context, state) => const SearchScreen(),
+),
+GoRoute(
+  path: '/journal',
+  name: 'journal',
+  builder: (context, state) => const JournalScreen(),
 ),
     ],
     errorBuilder: (context, state) => Scaffold(
