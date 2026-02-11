@@ -12,6 +12,8 @@ class GameBacklogModel extends GameBacklogEntry {
     super.isFavorite,
     super.reviewTitle,
     super.isSpoiler,
+    super.startDate,
+    super.endDate,
     required super.addedDate,
     super.completedDate,
     required super.lastUpdated,
@@ -29,6 +31,8 @@ class GameBacklogModel extends GameBacklogEntry {
       isFavorite: (json['is_favorite'] ?? 0) == 1,
       reviewTitle: json['review_title'],
       isSpoiler: (json['is_spoiler'] ?? 0) == 1,
+      startDate: json['start_date'] != null ? DateTime.parse(json['start_date']) : null,
+      endDate: json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
       addedDate: DateTime.parse(json['added_date']),
       completedDate: json['completed_date'] != null
           ? DateTime.parse(json['completed_date'])
@@ -49,6 +53,8 @@ class GameBacklogModel extends GameBacklogEntry {
       'is_favorite': isFavorite ? 1 : 0,
       'review_title': reviewTitle,
       'is_spoiler': isSpoiler ? 1 : 0,
+      'start_date': startDate?.toIso8601String(),
+      'end_date': endDate?.toIso8601String(),
       'added_date': addedDate.toIso8601String(),
       'completed_date': completedDate?.toIso8601String(),
       'last_updated': lastUpdated.toIso8601String(),
