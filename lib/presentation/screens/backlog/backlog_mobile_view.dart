@@ -150,6 +150,14 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
               context.go('/profile');
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.calendar_month),
+            title: const Text('Mi Diario'),
+            onTap: () {
+              context.pop();
+              context.push('/journal');
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
