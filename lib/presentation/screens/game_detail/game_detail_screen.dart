@@ -8,6 +8,7 @@ import '../../providers/backlog_provider.dart';
 import '../backlog/widgets/edit_game_dialog.dart';
 import '../backlog/widgets/review_dialog.dart'; // ✅ Nuevo
 import '../../../domain/entities/game_backlog_entry.dart'; // ✅ Nuevo
+import '../../../domain/entities/game_session.dart'; // ✅ Nuevo
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -378,6 +379,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                         style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
                       ),
                     ),
+                    _buildSessionsSection(context, entry),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -385,6 +388,271 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildSessionsSection(BuildContext context, GameBacklogEntry entry) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Sesiones de Juego',
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            TextButton.icon(
+              onPressed: () => _showAddSessionDialog(context, entry.gameId),
+              icon: const Icon(Icons.add, size: 20),
+              label: const Text('Registrar Sesión'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        FutureBuilder<List<GameSession>>(
+          future: context.read<BacklogProvider>().getSessionsForGame(entry.gameId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            
+            final sessions = snapshot.data ?? [];
+            if (sessions.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Aún no has registrado ninguna sesión.',
+                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: sessions.length > 3 ? 3 : sessions.length, // Mostrar últimas 3
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final session = sessions[index];
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.access_time, color: Theme.of(context).primaryColor, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${session.durationMinutes >= 60 ? '${(session.durationMinutes / 60).floor()}h ' : ''}${session.durationMinutes % 60} min - ${session.sessionDate.day}/${session.sessionDate.month}/${session.sessionDate.year}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                            ),
+                            if (session.description != null && session.description!.isNotEmpty)
+                              Text(
+                                session.description!,
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+                        onPressed: () => _showSessionOptions(context, session),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showSessionOptions(BuildContext context, GameSession session) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Editar Sesión'),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditSessionDialog(context, session);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Eliminar Sesión', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(context, session);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, GameSession session) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Eliminar sesión?'),
+        content: const Text('Esta acción restará el tiempo de esta sesión del total de horas jugadas.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () async {
+              final success = await context.read<BacklogProvider>().deleteGameSession(session.id);
+              if (success && context.mounted) {
+                Navigator.pop(context);
+                setState(() {});
+              }
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditSessionDialog(BuildContext context, GameSession session) {
+    _showSessionDialog(context, gameId: session.gameId, existingSession: session);
+  }
+
+  void _showAddSessionDialog(BuildContext context, String gameId) {
+    _showSessionDialog(context, gameId: gameId);
+  }
+
+  void _showSessionDialog(BuildContext context, {required String gameId, GameSession? existingSession}) {
+    final hours = existingSession != null ? (existingSession.durationMinutes / 60).floor() : 0;
+    final mins = existingSession != null ? existingSession.durationMinutes % 60 : 0;
+    
+    final hoursController = TextEditingController(text: hours > 0 ? hours.toString() : '');
+    final minsController = TextEditingController(text: mins > 0 ? mins.toString() : '');
+    final descController = TextEditingController(text: existingSession?.description ?? '');
+    DateTime selectedDate = existingSession?.sessionDate ?? DateTime.now();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(existingSession == null ? 'Registrar Sesión' : 'Editar Sesión'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Fecha: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDate = picked);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: hoursController,
+                        decoration: const InputDecoration(
+                          labelText: 'Horas',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: minsController,
+                        decoration: const InputDecoration(
+                          labelText: 'Minutos',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descController,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () async {
+                final h = int.tryParse(hoursController.text) ?? 0;
+                final m = int.tryParse(minsController.text) ?? 0;
+                final totalMinutes = (h * 60) + m;
+
+                if (totalMinutes > 0) {
+                  bool success;
+                  if (existingSession == null) {
+                    success = await context.read<BacklogProvider>().addGameSession(
+                      gameId: gameId,
+                      date: selectedDate,
+                      durationMinutes: totalMinutes,
+                      description: descController.text,
+                    );
+                  } else {
+                    success = await context.read<BacklogProvider>().updateGameSession(
+                      sessionId: existingSession.id,
+                      date: selectedDate,
+                      durationMinutes: totalMinutes,
+                      description: descController.text,
+                    );
+                  }
+
+                  if (success && context.mounted) {
+                    Navigator.pop(context);
+                    setState(() {});
+                  }
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
