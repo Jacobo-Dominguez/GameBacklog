@@ -76,10 +76,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Logo o título
-                  Icon(
-                    Icons.games,
-                    size: 80,
-                    color: Theme.of(context).colorScheme.primary,
+                  Image.asset(
+                    'assets/icons/logo_app2.png',
+                    height: 150,
                   ),
                   const SizedBox(height: 16),
                   Text(

@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backlog_provider.dart';
 import 'widgets/game_card.dart';
-import 'widgets/add_game_dialog.dart';
 import 'widgets/edit_game_dialog.dart';
 
 class BacklogMobileView extends StatefulWidget {
@@ -85,7 +84,7 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
           ),
           NavigationDestination(
             icon: Icon(Icons.search),
-            label: 'Buscar Online',
+            label: 'Buscar',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart_outlined),
@@ -101,7 +100,7 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
       ),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
-              onPressed: () => _showAddOptions(context),
+              onPressed: () => context.push('/search'),
               child: const Icon(Icons.add),
             )
           : null,
@@ -295,58 +294,6 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
     );
   }
 
-  void _showAddOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.search, color: Colors.blue),
-            title: const Text('Buscar en RAWG (Recomendado)'),
-            subtitle: const Text('Obtiene portada y datos automáticamente'),
-            onTap: () {
-              Navigator.pop(context); // cerrar sheet
-              context.push('/search');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit, color: Colors.grey),
-            title: const Text('Agregar Manualmente'),
-            subtitle: const Text('Ingresa los datos del juego tú mismo'),
-            onTap: () {
-              Navigator.pop(context); // cerrar sheet
-              _showAddGameDialog(context);
-            },
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  void _showAddGameDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AddGameDialog(
-        onAdd: (title, platform, status, genre) async {
-          final backlogProvider = context.read<BacklogProvider>();
-          final success = await backlogProvider.addGame(
-            title: title,
-            platform: platform,
-            status: status,
-            genre: genre,
-          );
-
-          if (success && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Juego agregado exitosamente')),
-            );
-          }
-        },
-      ),
-    );
-  }
 
   void _showEditGameDialog(BuildContext context, entry, game) {
     showDialog(

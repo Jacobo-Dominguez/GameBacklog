@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backlog_provider.dart';
 import 'widgets/game_card.dart';
-import 'widgets/add_game_dialog.dart';
 import 'widgets/edit_game_dialog.dart';
 
 class BacklogDesktopView extends StatefulWidget {
@@ -54,10 +53,10 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.games,
-                    size: 32,
-                    color: Theme.of(context).colorScheme.primary,
+                  Image.asset(
+                    'assets/icons/logo_app2.png',
+                    height: 32,
+                    width: 32,
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -162,24 +161,11 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
         ],
       ),
       floatingActionButton: _selectedIndex == 0
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                FloatingActionButton.extended(
-                  heroTag: 'manual',
-                  onPressed: () => _showAddGameDialog(context),
-                  icon: const Icon(Icons.edit),
-                  label: const Text('Manual'),
-                  backgroundColor: Colors.grey[700],
-                ),
-                const SizedBox(height: 16),
-                FloatingActionButton.extended(
-                  heroTag: 'search',
-                  onPressed: () => context.push('/search'),
-                  icon: const Icon(Icons.search),
-                  label: const Text('Buscar Online'),
-                ),
-              ],
+          ? FloatingActionButton.extended(
+              heroTag: 'search',
+              onPressed: () => context.push('/search'),
+              icon: const Icon(Icons.search),
+              label: const Text('Buscar'),
             )
           : null,
     );
@@ -467,28 +453,6 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
     );
   }
 
-  void _showAddGameDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AddGameDialog(
-        onAdd: (title, platform, status, genre) async {
-          final backlogProvider = context.read<BacklogProvider>();
-          final success = await backlogProvider.addGame(
-            title: title,
-            platform: platform,
-            status: status,
-            genre: genre,
-          );
-
-          if (success && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Juego agregado exitosamente')),
-            );
-          }
-        },
-      ),
-    );
-  }
 
   void _showEditGameDialog(BuildContext context, entry, game) {
     showDialog(
