@@ -107,11 +107,12 @@ lib/
         ```bash
         flutter run -d <id-dispositivo>
         ```
-    *   **Web**: No requiere instalación adicional, solo tener Chrome o Edge
+    *   **Web (Navegador)**:
+        No requiere instalación adicional, solo tener Chrome o Edge.
+        **IMPORTANTE para Web**: Para que la búsqueda de IGDB funcione, debes activar el proxy de CORS visitando [cors-anywhere.herokuapp.com/corsdemo](https://cors-anywhere.herokuapp.com/corsdemo) y pulsando el botón "Request temporary access".
         ```bash
         flutter run -d chrome
-        ```
-        ```bash
+        # O para Edge
         flutter run -d edge
         ```
 
