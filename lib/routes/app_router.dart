@@ -7,6 +7,8 @@ import '../presentation/screens/game_detail/game_detail_screen.dart';
 import '../presentation/screens/api_test/api_test_screen.dart';
 import '../presentation/screens/search/search_screen.dart';
 import '../presentation/screens/journal/journal_screen.dart';
+import '../presentation/screens/profile/edit_profile_screen.dart';
+import '../presentation/screens/profile/user_reviews_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 
 class AppRouter {
@@ -51,6 +53,16 @@ class AppRouter {
         path: '/profile',
         name: 'profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        name: 'edit-profile',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/user-reviews',
+        name: 'user-reviews',
+        builder: (context, state) => const UserReviewsScreen(),
       ),
       GoRoute(
         path: '/game/:id',
