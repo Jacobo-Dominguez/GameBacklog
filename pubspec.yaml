@@ -43,6 +43,7 @@ dependencies:
   # Calendario para el diario
   table_calendar: ^3.0.9
   image_picker: ^1.2.1
+  sqflite_common_ffi_web: ^1.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
