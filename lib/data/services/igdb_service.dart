@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class IGDBService {
@@ -9,14 +10,20 @@ class IGDBService {
   static String? _accessToken;
   static DateTime? _tokenExpiry;
 
+  String _getProxyUrl(String url) {
+    if (!kIsWeb) return url;
+    // Usamos un proxy de CORS para desarrollo web
+    return 'https://cors-anywhere.herokuapp.com/$url';
+  }
+
   Future<String> _getAccessToken() async {
     if (_accessToken != null && _tokenExpiry != null && _tokenExpiry!.isAfter(DateTime.now())) {
       return _accessToken!;
     }
 
-    // ✅ URL CORREGIDA: SIN ESPACIOS
     final response = await http.post(
-      Uri.parse('https://id.twitch.tv/oauth2/token'), // ✅ SIN ESPACIOS
+      Uri.parse(_getProxyUrl('https://id.twitch.tv/oauth2/token')),
+      headers: kIsWeb ? {'X-Requested-With': 'XMLHttpRequest'} : null,
       body: {
         'client_id': clientId,
         'client_secret': clientSecret,
@@ -39,14 +46,14 @@ class IGDBService {
     
     if (query.trim().isEmpty) return [];
 
-    // ✅ URL CORREGIDA: SIN ESPACIOS
     final response = await http.post(
-      Uri.parse('https://api.igdb.com/v4/games'), // ✅ SIN ESPACIOS
+      Uri.parse(_getProxyUrl('https://api.igdb.com/v4/games')),
       headers: {
         'Client-ID': clientId,
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
-        'Content-Type': 'text/plain', // ✅ Requerido por IGDB
+        'Content-Type': 'text/plain',
+        if (kIsWeb) 'X-Requested-With': 'XMLHttpRequest',
       },
       body: 'search "$query"; fields name, slug, summary, storyline, platforms.name, genres.name, first_release_date, cover.url, screenshots.url, involved_companies.company.name, rating, aggregated_rating, total_rating; limit 20;',
     );
@@ -61,9 +68,8 @@ class IGDBService {
   Future<Map<String, dynamic>?> getGameById(int id) async {
     final token = await _getAccessToken();
 
-    // ✅ URL CORREGIDA: SIN ESPACIOS
     final response = await http.post(
-      Uri.parse('https://api.igdb.com/v4/games'), // ✅ SIN ESPACIOS
+      Uri.parse(_getProxyUrl('https://api.igdb.com/v4/games')),
       headers: {
         'Client-ID': clientId,
         'Authorization': 'Bearer $token',
