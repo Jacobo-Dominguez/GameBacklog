@@ -84,7 +84,7 @@ lib/
 
 1.  **Clonar el repositorio**:
     ```bash
-    git clone https://github.com/tu-usuario/gamebacklog.git
+    git clone https://github.com/Jacobo-Dominguez/GameBacklog.git
     cd gamebacklog
     ```
 
