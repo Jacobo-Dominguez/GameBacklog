@@ -102,8 +102,17 @@ lib/
         flutter run -d windows
         ```
     *   **Android**:
+        1. Instala Android Studio y configura un emulador o conecta tu móvil con depuración USB.
+        2. Ejecuta el siguiente comando:
         ```bash
         flutter run -d <id-dispositivo>
+        ```
+    *   **Web**: No requiere instalación adicional, solo tener Chrome o Edge
+        ```bash
+        flutter run -d chrome
+        ```
+        ```bash
+        flutter run -d edge
         ```
 
 ---
