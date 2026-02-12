@@ -142,6 +142,71 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Actualizar perfil de usuario
+  Future<bool> updateProfile({
+    String? username,
+    String? email,
+    String? password,
+    String? avatarPath,
+  }) async {
+    if (_currentUser == null) return false;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Verificar unicidad si cambia username o email
+      if (username != null && username != _currentUser!.username) {
+        final existing = await userDataSource.getUserByUsername(username);
+        if (existing != null) {
+          _errorMessage = 'El nombre de usuario ya está en uso';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      }
+
+      if (email != null && email != _currentUser!.email) {
+        final existing = await userDataSource.getUserByEmail(email);
+        if (existing != null) {
+          _errorMessage = 'El email ya está registrado';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      }
+
+      final updatedUser = _currentUser!.copyWith(
+        username: username,
+        email: email,
+        passwordHash: password != null ? CryptoUtils.hashPassword(password) : null,
+        avatarUrl: avatarPath,
+      );
+
+      final updatedUserModel = UserModel(
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        passwordHash: updatedUser.passwordHash,
+        avatarUrl: updatedUser.avatarUrl,
+        createdAt: updatedUser.createdAt,
+      );
+
+      await userDataSource.updateUser(updatedUserModel);
+      _currentUser = updatedUser;
+      
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Error al actualizar perfil: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Limpiar mensaje de error
   void clearError() {
     _errorMessage = null;

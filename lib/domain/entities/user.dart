@@ -14,4 +14,22 @@ class User {
     this.avatarUrl,
     required this.createdAt,
   });
+
+  User copyWith({
+    String? id,
+    String? username,
+    String? email,
+    String? passwordHash,
+    String? avatarUrl,
+    DateTime? createdAt,
+  }) {
+    return User(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      passwordHash: passwordHash ?? this.passwordHash,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

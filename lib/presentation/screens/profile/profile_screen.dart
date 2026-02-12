@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -106,14 +107,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader(BuildContext context, dynamic user) {
+    ImageProvider? avatarImage;
+    if (user.avatarUrl != null && user.avatarUrl!.isNotEmpty) {
+      if (user.avatarUrl!.startsWith('http')) {
+        avatarImage = NetworkImage(user.avatarUrl!);
+      } else {
+        avatarImage = FileImage(File(user.avatarUrl!));
+      }
+    }
+
     return Column(
       children: [
-        CircleAvatar(
-          radius: 60,
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          child: Text(
-            user.username[0].toUpperCase(),
-            style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+        GestureDetector(
+          onTap: () => context.push('/edit-profile'),
+          child: Stack(
+            children: [
+              CircleAvatar(
+                radius: 60,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                backgroundImage: avatarImage,
+                child: avatarImage == null
+                    ? Text(
+                        user.username[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+                      )
+                    : null,
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.secondary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
+                  ),
+                  child: const Icon(Icons.edit, color: Colors.white, size: 20),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -124,6 +157,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           user.email,
           style: TextStyle(color: Colors.grey[400], fontSize: 16),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+           onPressed: () => context.push('/edit-profile'),
+           icon: const Icon(Icons.settings),
+           label: const Text('Editar Perfil'),
         ),
         const SizedBox(height: 8),
         Text(
@@ -267,10 +306,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-           OutlinedButton.icon(
+          OutlinedButton.icon(
             onPressed: () => context.push('/api-test'),
             icon: const Icon(Icons.bug_report_outlined),
             label: const Text('Dev Tools: Probar API'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/user-reviews'),
+            icon: const Icon(Icons.rate_review_outlined),
+            label: const Text('Mis Reseñas'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/journal'),
+            icon: const Icon(Icons.calendar_month_outlined),
+            label: const Text('Mi Diario de Juego'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
             ),
