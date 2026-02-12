@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../core/utils/image_utils.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
@@ -107,14 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader(BuildContext context, dynamic user) {
-    ImageProvider? avatarImage;
-    if (user.avatarUrl != null && user.avatarUrl!.isNotEmpty) {
-      if (user.avatarUrl!.startsWith('http')) {
-        avatarImage = NetworkImage(user.avatarUrl!);
-      } else {
-        avatarImage = FileImage(File(user.avatarUrl!));
-      }
-    }
+    final avatarImage = ImageUtils.getAvatarProvider(user.avatarUrl);
 
     return Column(
       children: [

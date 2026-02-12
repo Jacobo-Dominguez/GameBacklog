@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../core/utils/image_utils.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
@@ -47,11 +47,7 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
             child: CircleAvatar(
               radius: 16,
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              backgroundImage: (user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty)
-                  ? (user.avatarUrl!.startsWith('http')
-                      ? NetworkImage(user.avatarUrl!) as ImageProvider
-                      : FileImage(File(user.avatarUrl!)))
-                  : null,
+              backgroundImage: ImageUtils.getAvatarProvider(user?.avatarUrl),
               child: (user?.avatarUrl == null || user!.avatarUrl!.isEmpty)
                   ? Text(
                       user?.username[0].toUpperCase() ?? 'U',
