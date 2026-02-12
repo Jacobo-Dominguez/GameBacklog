@@ -1,7 +1,9 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'dart:io';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -12,8 +14,15 @@ class DatabaseHelper {
   Future<Database> get database async {
     if (_database != null) return _database!;
     
-    // Inicializar sqflite_common_ffi para Windows
-    if (Platform.isWindows || Platform.isLinux) {
+    // Inicialización para Web
+    if (kIsWeb) {
+      databaseFactory = databaseFactoryFfiWeb;
+      _database = await _initDB('game_backlog.db');
+      return _database!;
+    }
+
+    // Inicialización para Desktop (Windows/Linux/MacOS)
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
