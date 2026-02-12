@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -133,15 +134,21 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                           const SizedBox(width: 12),
                           CircleAvatar(
                             radius: 20,
-                            backgroundColor:
-                                Theme.of(context).colorScheme.primary,
-                            child: Text(
-                              user?.username[0].toUpperCase() ?? 'U',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.white,
-                              ),
-                            ),
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            backgroundImage: (user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty)
+                                ? (user.avatarUrl!.startsWith('http')
+                                    ? NetworkImage(user.avatarUrl!) as ImageProvider
+                                    : FileImage(File(user.avatarUrl!)))
+                                : null,
+                            child: (user?.avatarUrl == null || user!.avatarUrl!.isEmpty)
+                                ? Text(
+                                    user?.username[0].toUpperCase() ?? 'U',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : null,
                           ),
                         ],
                       ),
