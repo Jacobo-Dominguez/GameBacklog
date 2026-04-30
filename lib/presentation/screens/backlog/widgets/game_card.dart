@@ -9,6 +9,7 @@ class GameCard extends StatelessWidget {
   final Game game;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final bool showMenu;
 
   const GameCard({
     super.key,
@@ -16,6 +17,7 @@ class GameCard extends StatelessWidget {
     required this.game,
     required this.onEdit,
     required this.onDelete,
+    this.showMenu = true,
   });
 
   Color _getStatusColor(String status) {
@@ -103,36 +105,37 @@ class GameCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'edit') onEdit();
-                          if (value == 'delete') onDelete();
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit, size: 20),
-                                SizedBox(width: 8),
-                                Text('Editar'),
-                              ],
+                      if (showMenu)
+                        PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'edit') onEdit();
+                            if (value == 'delete') onDelete();
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Editar'),
+                                ],
+                              ),
                             ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, color: Colors.red, size: 20),
-                                SizedBox(width: 8),
-                                Text('Eliminar', style: TextStyle(color: Colors.red)),
-                              ],
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, color: Colors.red, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Eliminar', style: TextStyle(color: Colors.red)),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.more_vert, size: 20),
-                      ),
+                          ],
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.more_vert, size: 20),
+                        ),
                     ],
                   ),
                   
