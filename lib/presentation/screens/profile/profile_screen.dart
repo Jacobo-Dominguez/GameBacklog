@@ -335,6 +335,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/discovery'),
+            icon: const Icon(Icons.explore_outlined),
+            label: const Text('Comunidad'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+          const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed: () => _handleLogout(context, authProvider),
             icon: const Icon(Icons.logout_rounded),

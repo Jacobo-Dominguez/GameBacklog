@@ -11,6 +11,7 @@ import '../presentation/screens/profile/edit_profile_screen.dart';
 import '../presentation/screens/profile/user_reviews_screen.dart';
 import '../presentation/screens/collections/collections_screen.dart';
 import '../presentation/screens/collections/collection_detail_screen.dart';
+import '../presentation/screens/discovery/discovery_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 
 class AppRouter {
@@ -102,6 +103,11 @@ GoRoute(
     final listId = state.pathParameters['id']!;
     return CollectionDetailScreen(listId: listId);
   },
+),
+GoRoute(
+  path: '/discovery',
+  name: 'discovery',
+  builder: (context, state) => const DiscoveryScreen(),
 ),
     ],
     errorBuilder: (context, state) => Scaffold(

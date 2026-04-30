@@ -8,21 +8,28 @@ import 'data/datasources/game_local_datasource_impl.dart';
 import 'data/datasources/game_backlog_local_datasource_impl.dart';
 import 'data/datasources/game_session_local_datasource.dart';
 import 'data/datasources/game_list_local_datasource.dart';
+import 'data/datasources/community_local_datasource.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/backlog_provider.dart';
+import 'presentation/providers/community_provider.dart';
 import 'routes/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializar dependencias
+  // Inicializar base de datos
   final dbHelper = DatabaseHelper.instance;
+  await dbHelper.database; // Asegura que la BD se cree/abra
+  await dbHelper.seedCommunityData(); // <- INYECTA DATOS MOCK
+
+  // Crear DataSources
   final userDataSource = UserLocalDataSourceImpl(dbHelper);
   final authSessionDataSource = SessionLocalDataSource();
   final gameDataSource = GameLocalDataSourceImpl(dbHelper);
   final backlogDataSource = GameBacklogLocalDataSourceImpl(dbHelper);
   final gameSessionDataSource = GameSessionLocalDataSource(dbHelper);
   final gameListDataSource = GameListLocalDataSource(dbHelper);
+  final communityDataSource = CommunityLocalDataSource(dbHelper);
 
   // Crear AuthProvider
   final authProvider = AuthProvider(
@@ -48,6 +55,18 @@ void main() async {
                 backlogDataSource: backlogDataSource,
                 sessionDataSource: gameSessionDataSource,
                 listDataSource: gameListDataSource,
+              );
+            }
+            return null;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, CommunityProvider?>(
+          create: (_) => null,
+          update: (context, auth, previous) {
+            if (auth.currentUser != null) {
+              return CommunityProvider(
+                dataSource: communityDataSource,
+                currentUserId: auth.currentUser!.id,
               );
             }
             return null;

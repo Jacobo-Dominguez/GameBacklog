@@ -44,6 +44,8 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                 context.push('/journal');
               } else if (index == 5) {
                 context.push('/collections');
+              } else if (index == 6) {
+                context.push('/discovery');
               } else {
                 setState(() {
                   _selectedIndex = index;
@@ -101,6 +103,11 @@ class _BacklogDesktopViewState extends State<BacklogDesktopView> {
                 icon: const Icon(Icons.collections_bookmark_outlined),
                 selectedIcon: const Icon(Icons.collections_bookmark),
                 label: const Text('Colecciones'),
+              ),
+              NavigationRailDestination(
+                icon: const Icon(Icons.explore_outlined),
+                selectedIcon: const Icon(Icons.explore),
+                label: const Text('Descubrir'),
               ),
             ],
           ),
