@@ -6,7 +6,8 @@ import 'data/datasources/user_local_datasource_impl.dart';
 import 'data/datasources/session_local_datasource.dart';
 import 'data/datasources/game_local_datasource_impl.dart';
 import 'data/datasources/game_backlog_local_datasource_impl.dart';
-import 'data/datasources/game_session_local_datasource.dart'; // ✅ Nuevo
+import 'data/datasources/game_session_local_datasource.dart';
+import 'data/datasources/game_list_local_datasource.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/backlog_provider.dart';
 import 'routes/app_router.dart';
@@ -21,6 +22,7 @@ void main() async {
   final gameDataSource = GameLocalDataSourceImpl(dbHelper);
   final backlogDataSource = GameBacklogLocalDataSourceImpl(dbHelper);
   final gameSessionDataSource = GameSessionLocalDataSource(dbHelper);
+  final gameListDataSource = GameListLocalDataSource(dbHelper);
 
   // Crear AuthProvider
   final authProvider = AuthProvider(
@@ -45,6 +47,7 @@ void main() async {
                 gameDataSource: gameDataSource,
                 backlogDataSource: backlogDataSource,
                 sessionDataSource: gameSessionDataSource,
+                listDataSource: gameListDataSource,
               );
             }
             return null;

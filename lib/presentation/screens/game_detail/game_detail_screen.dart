@@ -7,8 +7,9 @@ import '../../../data/datasources/game_remote_datasource.dart';
 import '../../providers/backlog_provider.dart';
 import '../backlog/widgets/edit_game_dialog.dart';
 import '../backlog/widgets/review_dialog.dart'; // ✅ Nuevo
-import '../../../domain/entities/game_backlog_entry.dart'; // ✅ Nuevo
-import '../../../domain/entities/game_session.dart'; // ✅ Nuevo
+import '../../../domain/entities/game_backlog_entry.dart';
+import '../../../domain/entities/game_session.dart';
+import '../../../domain/entities/game_list.dart';
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -163,12 +164,22 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             
             if (entry == null) return const SizedBox.shrink();
             
-            return IconButton(
-              icon: Icon(
-                entry.isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: entry.isFavorite ? Colors.red : Colors.white,
-              ),
-              onPressed: () => provider.toggleFavorite(entry.id),
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    entry.isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: entry.isFavorite ? Colors.red : Colors.white,
+                  ),
+                  onPressed: () => provider.toggleFavorite(entry.id),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.playlist_add, color: Colors.white),
+                  tooltip: 'Añadir a colección',
+                  onPressed: () => _showAddToListSheet(context, provider),
+                ),
+              ],
             );
           },
         ),
@@ -802,5 +813,153 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             const SnackBar(content: Text('Juego agregado al backlog')),
           );
       }
+  }
+
+  void _showAddToListSheet(BuildContext context, BacklogProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final lists = provider.gameLists;
+
+            if (lists.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.collections_bookmark_outlined, size: 48, color: Colors.grey[500]),
+                    const SizedBox(height: 16),
+                    const Text('No tienes colecciones aún'),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _showQuickCreateList(context, provider);
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Crear Colección'),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Añadir a colección',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _showQuickCreateList(context, provider);
+                          },
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Nueva'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...lists.map((list) {
+                    return FutureBuilder<List<GameList>>(
+                      future: provider.getListsForGame(widget.gameId),
+                      builder: (context, snapshot) {
+                        final containingLists = snapshot.data ?? [];
+                        final isInList = containingLists.any((l) => l.id == list.id);
+
+                        return CheckboxListTile(
+                          title: Text(list.name),
+                          subtitle: list.description != null
+                              ? Text(list.description!, maxLines: 1, overflow: TextOverflow.ellipsis)
+                              : null,
+                          secondary: Icon(
+                            Icons.collections_bookmark,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          value: isInList,
+                          onChanged: (value) async {
+                            if (value == true) {
+                              await provider.addGameToList(list.id, widget.gameId);
+                            } else {
+                              await provider.removeGameFromList(list.id, widget.gameId);
+                            }
+                            setSheetState(() {});
+                          },
+                        );
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showQuickCreateList(BuildContext context, BacklogProvider provider) {
+    final nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nueva Colección'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Nombre',
+            hintText: 'Ej: RPGs favoritos',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) return;
+
+              final success = await provider.createGameList(name: name);
+              if (success && context.mounted) {
+                Navigator.pop(context);
+                // Abrir de nuevo el bottom sheet para añadir
+                _showAddToListSheet(context, provider);
+              }
+            },
+            child: const Text('Crear'),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -326,6 +326,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => context.push('/collections'),
+            icon: const Icon(Icons.collections_bookmark_outlined),
+            label: const Text('Mis Colecciones'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50),
+            ),
+          ),
+          const SizedBox(height: 12),
           ElevatedButton.icon(
             onPressed: () => _handleLogout(context, authProvider),
             icon: const Icon(Icons.logout_rounded),
