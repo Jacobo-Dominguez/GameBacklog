@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/backlog_provider.dart';
+import '../../widgets/spoiler_text_widget.dart';
 
 class UserReviewsScreen extends StatelessWidget {
   const UserReviewsScreen({super.key});
@@ -74,13 +75,31 @@ class UserReviewsScreen extends StatelessWidget {
                             entry.reviewTitle!,
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        if (entry.notes != null && entry.notes!.isNotEmpty)
-                          Text(
-                            entry.notes!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
+                        if (entry.notes != null && entry.notes!.isNotEmpty) ...[
+                          if (entry.isSpoiler) ...[
+                            const SizedBox(height: 4),
+                            const Row(
+                              children: [
+                                Icon(Icons.warning, color: Colors.orange, size: 14),
+                                SizedBox(width: 4),
+                                Text('SPOILER', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            SpoilerTextWidget(
+                              text: entry.notes!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ] else
+                            Text(
+                              entry.notes!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                        ],
                       ],
                     ),
                     onTap: () => context.push('/game/${game.id}'),
