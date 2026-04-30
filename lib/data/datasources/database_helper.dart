@@ -37,7 +37,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -107,6 +107,22 @@ class DatabaseHelper {
 
       await db.execute('CREATE INDEX idx_lists_user ON game_lists(user_id)');
       await db.execute('CREATE INDEX idx_list_items_list ON game_list_items(list_id)');
+    }
+
+    if (oldVersion < 6) {
+      // Migración a versión 6: Social y Likes
+      await db.execute('''
+        CREATE TABLE review_likes (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          review_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (review_id) REFERENCES game_backlog(id) ON DELETE CASCADE,
+          UNIQUE(user_id, review_id)
+        )
+      ''');
+      await db.execute('CREATE INDEX idx_review_likes_review ON review_likes(review_id)');
     }
 }
 
@@ -215,6 +231,143 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_backlog_status ON game_backlog(status)');
     await db.execute('CREATE INDEX idx_lists_user ON game_lists(user_id)');
     await db.execute('CREATE INDEX idx_list_items_list ON game_list_items(list_id)');
+
+    // Tabla review_likes - v6
+    await db.execute('''
+      CREATE TABLE review_likes (
+        id $idType,
+        user_id $textType,
+        review_id $textType,
+        created_at $textType,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (review_id) REFERENCES game_backlog(id) ON DELETE CASCADE,
+        UNIQUE(user_id, review_id)
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_review_likes_review ON review_likes(review_id)');
+  }
+
+  // --- MOCK DATA SEED ---
+  Future<void> seedCommunityData() async {
+    final db = await instance.database;
+    
+    // Verificar si ya hay datos
+    final count = Sqflite.firstIntValue(await db.rawQuery("SELECT COUNT(*) FROM users WHERE id LIKE 'mock_user_%'"));
+    if (count != null && count > 0) return; // Ya se sembró
+    
+    final mockUsers = [
+      {
+        'id': 'mock_user_1',
+        'username': 'GamerGirl99',
+        'email': 'gamergirl99@example.com',
+        'password_hash': 'mock',
+        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/png?seed=GamerGirl99',
+        'created_at': DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+      },
+      {
+        'id': 'mock_user_2',
+        'username': 'RPG_Master',
+        'email': 'rpgmaster@example.com',
+        'password_hash': 'mock',
+        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/png?seed=RPG_Master',
+        'created_at': DateTime.now().subtract(const Duration(days: 60)).toIso8601String(),
+      },
+      {
+        'id': 'mock_user_3',
+        'username': 'Speedrunner',
+        'email': 'speed@example.com',
+        'password_hash': 'mock',
+        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/png?seed=Speedrunner',
+        'created_at': DateTime.now().subtract(const Duration(days: 15)).toIso8601String(),
+      }
+    ];
+
+    for (var u in mockUsers) {
+      await db.insert('users', u, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+
+    final mockGames = [
+      {
+        'id': 'mock_game_1',
+        'title': 'The Witcher 3: Wild Hunt',
+        'platform': 'PC',
+        'genre': 'RPG',
+        'coverUrl': 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1wyy.png',
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'userId': 'system'
+      },
+      {
+        'id': 'mock_game_2',
+        'title': 'Elden Ring',
+        'platform': 'PS5',
+        'genre': 'Action RPG',
+        'coverUrl': 'https://images.igdb.com/igdb/image/upload/t_cover_big/co4jni.png',
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'userId': 'system'
+      },
+      {
+        'id': 'mock_game_3',
+        'title': 'Cyberpunk 2077',
+        'platform': 'Xbox Series X',
+        'genre': 'Action RPG',
+        'coverUrl': 'https://images.igdb.com/igdb/image/upload/t_cover_big/co2mvt.png',
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'userId': 'system'
+      }
+    ];
+
+    for (var g in mockGames) {
+      await db.insert('games', g, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+
+    final mockReviews = [
+      {
+        'id': 'mock_review_1',
+        'user_id': 'mock_user_1',
+        'game_id': 'mock_game_1',
+        'status': 'completed',
+        'hours_played': 120,
+        'rating': 10,
+        'review_title': 'Una obra maestra absoluta',
+        'notes': 'Increíble narrativa y misiones secundarias que parecen principales. El DLC Blood and Wine es espectacular.',
+        'is_spoiler': 0,
+        'added_date': DateTime.now().subtract(const Duration(days: 10)).toIso8601String(),
+        'last_updated': DateTime.now().subtract(const Duration(days: 10)).toIso8601String()
+      },
+      {
+        'id': 'mock_review_2',
+        'user_id': 'mock_user_2',
+        'game_id': 'mock_game_2',
+        'status': 'playing',
+        'hours_played': 45,
+        'rating': 9,
+        'review_title': 'Difícil pero gratificante',
+        'notes': 'El jefe final de la segunda zona es donde realmente empieza el juego. Cuidado cuando llegues a la capital porque el dragón aparece de la nada y destruye todo el puente principal.',
+        'is_spoiler': 1,
+        'added_date': DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
+        'last_updated': DateTime.now().subtract(const Duration(days: 5)).toIso8601String()
+      },
+      {
+        'id': 'mock_review_3',
+        'user_id': 'mock_user_3',
+        'game_id': 'mock_game_3',
+        'status': 'completed',
+        'hours_played': 60,
+        'rating': 8,
+        'review_title': 'Un diamante en bruto',
+        'notes': 'Tras las actualizaciones, es un juego fantástico. Night City es una de las ciudades más inmersivas que he visitado en un videojuego.',
+        'is_spoiler': 0,
+        'added_date': DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
+        'last_updated': DateTime.now().subtract(const Duration(days: 2)).toIso8601String()
+      }
+    ];
+
+    for (var r in mockReviews) {
+      await db.insert('game_backlog', r, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
   }
 
   Future<void> close() async {
