@@ -37,7 +37,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -77,6 +77,36 @@ class DatabaseHelper {
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
       ''');
+    }
+
+    if (oldVersion < 5) {
+      // Migración a versión 5: Listas y Colecciones
+      await db.execute('''
+        CREATE TABLE game_lists (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE game_list_items (
+          id TEXT PRIMARY KEY,
+          list_id TEXT NOT NULL,
+          game_id TEXT NOT NULL,
+          added_at TEXT NOT NULL,
+          FOREIGN KEY (list_id) REFERENCES game_lists(id) ON DELETE CASCADE,
+          FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+          UNIQUE(list_id, game_id)
+        )
+      ''');
+
+      await db.execute('CREATE INDEX idx_lists_user ON game_lists(user_id)');
+      await db.execute('CREATE INDEX idx_list_items_list ON game_list_items(list_id)');
     }
 }
 
@@ -154,9 +184,37 @@ class DatabaseHelper {
       )
     ''');
 
+    // Tabla game_lists - v5
+    await db.execute('''
+      CREATE TABLE game_lists (
+        id $idType,
+        user_id $textType,
+        name $textType,
+        description $textTypeNullable,
+        created_at $textType,
+        updated_at $textType,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Tabla game_list_items - v5
+    await db.execute('''
+      CREATE TABLE game_list_items (
+        id $idType,
+        list_id $textType,
+        game_id $textType,
+        added_at $textType,
+        FOREIGN KEY (list_id) REFERENCES game_lists(id) ON DELETE CASCADE,
+        FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+        UNIQUE(list_id, game_id)
+      )
+    ''');
+
     // Crear índices para mejorar rendimiento
     await db.execute('CREATE INDEX idx_backlog_user ON game_backlog(user_id)');
     await db.execute('CREATE INDEX idx_backlog_status ON game_backlog(status)');
+    await db.execute('CREATE INDEX idx_lists_user ON game_lists(user_id)');
+    await db.execute('CREATE INDEX idx_list_items_list ON game_list_items(list_id)');
   }
 
   Future<void> close() async {
