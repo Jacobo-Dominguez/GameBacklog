@@ -9,18 +9,24 @@ import '../../domain/entities/game.dart';
 import '../../domain/entities/game_backlog_entry.dart';
 
 import '../../data/datasources/game_session_local_datasource.dart';
+import '../../data/datasources/game_list_local_datasource.dart';
 import '../../domain/entities/game_session.dart';
 import '../../data/models/game_session_model.dart';
+import '../../domain/entities/game_list.dart';
+import '../../data/models/game_list_model.dart';
+import '../../data/models/game_list_item_model.dart';
 
 class BacklogProvider with ChangeNotifier {
   final String userId;
   final GameLocalDataSourceImpl gameDataSource;
   final GameBacklogLocalDataSourceImpl backlogDataSource;
   final GameSessionLocalDataSource sessionDataSource;
+  final GameListLocalDataSource listDataSource;
 
   List<GameBacklogEntry> _backlogEntries = [];
   Map<String, Game> _gamesMap = {};
   List<GameSession> _recentSessions = [];
+  List<GameList> _gameLists = [];
   String _selectedFilter = 'all';
   String _searchQuery = '';
   bool _isLoading = false;
@@ -31,6 +37,7 @@ class BacklogProvider with ChangeNotifier {
     required this.gameDataSource,
     required this.backlogDataSource,
     required this.sessionDataSource,
+    required this.listDataSource,
   }) {
     loadBacklog();
   }
@@ -38,6 +45,7 @@ class BacklogProvider with ChangeNotifier {
   List<GameBacklogEntry> get backlogEntries => _backlogEntries;
   Map<String, Game> get gamesMap => _gamesMap;
   List<GameSession> get recentSessions => _recentSessions;
+  List<GameList> get gameLists => _gameLists;
   String get selectedFilter => _selectedFilter;
   String get searchQuery => _searchQuery;
   bool get isLoading => _isLoading;
@@ -86,6 +94,9 @@ class BacklogProvider with ChangeNotifier {
 
       // Cargar sesiones recientes (opcional para el feed inicial)
       _recentSessions = await sessionDataSource.getSessionsByUserId(userId);
+
+      // Cargar listas/colecciones
+      _gameLists = await listDataSource.getListsByUserId(userId);
     } catch (e) {
       debugPrint('Error loading backlog: $e');
     } finally {
@@ -516,5 +527,151 @@ Future<bool> addGameFromSearch(Game game) async {
 
   int getTotalMinutesPlayed() {
     return _recentSessions.fold(0, (sum, s) => sum + s.durationMinutes);
+  }
+
+  // ─── Listas / Colecciones ───
+
+  Future<bool> createGameList({
+    required String name,
+    String? description,
+  }) async {
+    try {
+      final list = GameListModel(
+        id: const Uuid().v4(),
+        userId: userId,
+        name: name,
+        description: description,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await listDataSource.insertList(list);
+      _gameLists.insert(0, list);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error creating list: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateGameList({
+    required String listId,
+    required String name,
+    String? description,
+  }) async {
+    try {
+      final index = _gameLists.indexWhere((l) => l.id == listId);
+      if (index == -1) return false;
+
+      final old = _gameLists[index];
+      final updated = GameListModel(
+        id: old.id,
+        userId: old.userId,
+        name: name,
+        description: description,
+        createdAt: old.createdAt,
+        updatedAt: DateTime.now(),
+      );
+
+      await listDataSource.updateList(updated);
+      _gameLists[index] = updated;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error updating list: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteGameList(String listId) async {
+    try {
+      await listDataSource.deleteList(listId);
+      _gameLists.removeWhere((l) => l.id == listId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting list: $e');
+      return false;
+    }
+  }
+
+  Future<bool> addGameToList(String listId, String gameId) async {
+    try {
+      final already = await listDataSource.isGameInList(listId, gameId);
+      if (already) return false;
+
+      final item = GameListItemModel(
+        id: const Uuid().v4(),
+        listId: listId,
+        gameId: gameId,
+        addedAt: DateTime.now(),
+      );
+
+      await listDataSource.addGameToList(item);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error adding game to list: $e');
+      return false;
+    }
+  }
+
+  Future<bool> removeGameFromList(String listId, String gameId) async {
+    try {
+      await listDataSource.removeGameFromList(listId, gameId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error removing game from list: $e');
+      return false;
+    }
+  }
+
+  Future<List<Game>> getGamesInList(String listId) async {
+    final items = await listDataSource.getItemsByListId(listId);
+    final games = <Game>[];
+    for (final item in items) {
+      // Primero buscar en el mapa local (backlog)
+      var game = _gamesMap[item.gameId];
+      // Si no está en el backlog, buscar directamente en la BD
+      if (game == null) {
+        game = await gameDataSource.getGameById(item.gameId);
+      }
+      if (game != null) {
+        games.add(game);
+      }
+    }
+    return games;
+  }
+
+  Future<List<GameList>> getListsForGame(String gameId) async {
+    return await listDataSource.getListsContainingGame(gameId, userId);
+  }
+
+  Future<int> getListItemCount(String listId) async {
+    return await listDataSource.getItemCount(listId);
+  }
+
+  /// Guarda un juego en la BD local sin añadirlo al backlog.
+  /// Útil para añadir juegos de IGDB directamente a colecciones.
+  Future<void> saveGameToDb(Game game) async {
+    final existing = await gameDataSource.getGameById(game.id);
+    if (existing == null) {
+      final gameModel = GameModel(
+        id: game.id,
+        title: game.title,
+        platform: game.platform,
+        genre: game.genre,
+        releaseDate: game.releaseDate,
+        coverUrl: game.coverUrl,
+        description: game.description,
+        remoteId: game.remoteId,
+        createdAt: game.createdAt,
+        updatedAt: game.updatedAt,
+        userId: game.userId,
+      );
+      await gameDataSource.insertGame(gameModel);
+    }
   }
 }
