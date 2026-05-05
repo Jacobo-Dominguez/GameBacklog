@@ -25,7 +25,7 @@ class GameRemoteDataSource {
         String? coverUrl;
         if (json['cover'] != null && json['cover']['url'] != null) {
           String rawUrl = json['cover']['url'];
-          rawUrl = rawUrl.replaceAll('t_thumb', 't_cover_big');
+          rawUrl = rawUrl.replaceAll('t_thumb', 't_720p'); // ✅ Mayor calidad para la ficha
           coverUrl = 'https:$rawUrl';
         }
 

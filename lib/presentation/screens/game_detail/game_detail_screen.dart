@@ -120,7 +120,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             if (details!['platforms'] != null) {
                 final platforms = details['platforms'] as List;
                 if (platforms.isNotEmpty) {
-                    _remotePlatform = platforms.first['name'];
+                    _remotePlatform = platforms.map((p) => p['name'] as String).join(', ');
                 }
             }
           });
@@ -147,8 +147,6 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeaderInfo(),
-                  const SizedBox(height: 24),
                   _buildDescriptionSection(),
                   const SizedBox(height: 40),
                 ],
@@ -166,8 +164,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           if (entry != null) {
               return FloatingActionButton.extended(
                 onPressed: () => _showEditDialog(context, entry, provider),
-                icon: const Icon(Icons.edit),
-                label: const Text('Gestionar'),
+                icon: const Icon(Icons.edit, color: Colors.white),
+                label: const Text('Gestionar', style: TextStyle(color: Colors.white)),
                 backgroundColor: Theme.of(context).colorScheme.primary,
               );
           } else {
@@ -185,8 +183,15 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
-      expandedHeight: 300.0,
+      expandedHeight: 420.0,
       pinned: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      leading: Center(
+        child: _buildCircularButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       actions: [
         // ✅ Botón de Favorito
         Consumer<BacklogProvider>(
@@ -200,56 +205,112 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
+                _buildCircularButton(
                   icon: Icon(
                     entry.isFavorite ? Icons.favorite : Icons.favorite_border,
                     color: entry.isFavorite ? Colors.red : Colors.white,
                   ),
                   onPressed: () => provider.toggleFavorite(entry.id),
                 ),
-                IconButton(
+                const SizedBox(width: 8),
+                _buildCircularButton(
                   icon: const Icon(Icons.playlist_add, color: Colors.white),
                   tooltip: 'Añadir a colección',
                   onPressed: () => _showAddToListSheet(context, provider),
                 ),
+                const SizedBox(width: 16),
               ],
             );
           },
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        title: Text(
-          _game.title,
-          style: const TextStyle(
-            color: Colors.white,
-            shadows: [Shadow(color: Colors.black, blurRadius: 10)],
-          ),
-        ),
+        collapseMode: CollapseMode.pin,
         background: Stack(
           fit: StackFit.expand,
           children: [
+            // Fondo difuminado/oscurecido
             if (_game.coverUrl != null && _game.coverUrl!.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: _game.coverUrl!,
-                fit: BoxFit.cover,
-                errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(Icons.videogame_asset, size: 80, color: Colors.white54),
+              Opacity(
+                opacity: 0.5,
+                child: CachedNetworkImage(
+                  imageUrl: _game.coverUrl!.replaceAll('t_cover_big', 't_720p').replaceAll('t_thumb', 't_720p'),
+                  fit: BoxFit.cover,
                 ),
-              )
-            else
-              Container(
-                color: Colors.grey[800],
-                child: const Icon(Icons.videogame_asset, size: 80, color: Colors.white54),
               ),
+            
+            // Gradiente para asegurar legibilidad
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black87],
-                  stops: [0.6, 1.0],
+                  colors: [Colors.black54, Colors.black],
+                  stops: [0.0, 1.0],
                 ),
+              ),
+            ),
+
+            // Contenido Principal (Carátula + Info)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Portada como "Carta"
+                  Container(
+                    width: 140,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _game.coverUrl != null && _game.coverUrl!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: _game.coverUrl!.replaceAll('t_cover_big', 't_720p').replaceAll('t_thumb', 't_720p'),
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: Colors.grey[800],
+                              child: const Icon(Icons.videogame_asset, size: 50),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  
+                  // Título e Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _game.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            shadows: [Shadow(color: Colors.black, blurRadius: 8)],
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildHeaderInfo(isCompact: true),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -258,24 +319,58 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildHeaderInfo() {
-    final platformToShow = _remotePlatform ?? _game.platform;
+  Widget _buildHeaderInfo({bool isCompact = false}) {
+    List<String> platforms = [];
+    if (_remotePlatform != null) {
+        platforms = _remotePlatform!.split(', ');
+    } else if (_game.platform != null) {
+        platforms = _game.platform!.split(', ');
+    }
     
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 6,
+      runSpacing: 6,
       children: [
-        if (platformToShow != null && platformToShow.isNotEmpty)
-          Chip(
-            avatar: const Icon(Icons.gamepad, size: 16),
-            label: Text(platformToShow),
-          ),
+        ...platforms.map((p) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24, width: 1),
+            ),
+            child: Text(
+                p, 
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)
+            ),
+        )),
         if (_game.releaseDate != null)
-          Chip(
-            avatar: const Icon(Icons.calendar_today, size: 16),
-            label: Text('${_game.releaseDate!.year}'),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5), width: 1),
+            ),
+            child: Text(
+                '${_game.releaseDate!.year}', 
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)
+            ),
           ),
       ],
+    );
+  }
+
+  Widget _buildCircularButton({required Widget icon, required VoidCallback onPressed, String? tooltip}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.4),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: icon,
+        onPressed: onPressed,
+        tooltip: tooltip,
+      ),
     );
   }
 
@@ -297,7 +392,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       if (_apiDetails != null && _apiDetails!['genres'] != null) {
           genresToShow = (_apiDetails!['genres'] as List).map((g) => g['name'] as String).toList();
       } else if (_game.genre != null) {
-          genresToShow = [_game.genre!];
+          genresToShow = _game.genre!.split(', ');
       }
 
       return Column(
@@ -308,7 +403,19 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   const SizedBox(height: 12),
                   Wrap(
                       spacing: 8, 
-                      children: genresToShow.take(4).map((g) => Chip(label: Text(g))).toList()
+                      runSpacing: 8,
+                      children: genresToShow.take(4).map((g) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white24, width: 1),
+                          ),
+                          child: Text(
+                              g, 
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)
+                          ),
+                      )).toList()
                   ),
                   const SizedBox(height: 24),
               ],
@@ -888,7 +995,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                      itemCount: screenshots.length,
                      itemBuilder: (context, index) {
                          String url = screenshots[index]['url'];
-                         url = 'https:${url.replaceAll('t_thumb', 't_screenshot_med')}'; 
+                         url = 'https:${url.replaceAll('t_thumb', 't_720p')}'; 
                          
                          return Padding(
                              padding: const EdgeInsets.only(right: 12),
