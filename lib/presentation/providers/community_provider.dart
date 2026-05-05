@@ -8,9 +8,15 @@ class CommunityProvider with ChangeNotifier {
 
   List<CommunityReview> _feed = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   List<CommunityReview> get feed => _feed;
   bool get isLoading => _isLoading;
+  bool get isLoadingMore => _isLoadingMore;
+  bool get hasMore => _hasMore;
 
   CommunityProvider({
     required this.dataSource,
@@ -21,15 +27,61 @@ class CommunityProvider with ChangeNotifier {
 
   Future<void> loadDiscoveryFeed() async {
     _isLoading = true;
+    _currentPage = 0;
+    _hasMore = true;
     notifyListeners();
 
     try {
-      _feed = await dataSource.getDiscoveryFeed(currentUserId);
+      final results = await dataSource.getDiscoveryFeed(currentUserId, limit: _pageSize, offset: 0);
+      _feed = List<CommunityReview>.from(results);
+      if (_feed.length < _pageSize) {
+        _hasMore = false;
+      }
     } catch (e) {
       debugPrint('Error loading community feed: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> loadMoreDiscoveryFeed() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      _currentPage++;
+      final more = await dataSource.getDiscoveryFeed(
+        currentUserId, 
+        limit: _pageSize, 
+        offset: _currentPage * _pageSize
+      );
+      
+      if (more.isEmpty) {
+        _hasMore = false;
+      } else {
+        _feed.addAll(List<CommunityReview>.from(more));
+        if (more.length < _pageSize) {
+          _hasMore = false;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading more community feed: $e');
+      _currentPage--;
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  Future<List<CommunityReview>> getReviewsForGame(String gameId) async {
+    try {
+      return await dataSource.getReviewsByGameId(gameId, currentUserId);
+    } catch (e) {
+      debugPrint('Error fetching game reviews: $e');
+      return [];
     }
   }
 

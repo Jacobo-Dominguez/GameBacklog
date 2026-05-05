@@ -36,9 +36,22 @@ class DiscoveryScreen extends StatelessWidget {
             onRefresh: () => provider.loadDiscoveryFeed(),
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: provider.feed.length,
+              itemCount: provider.feed.length + (provider.hasMore ? 1 : 0),
               separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
+                if (index == provider.feed.length) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: provider.isLoadingMore
+                          ? const CircularProgressIndicator()
+                          : ElevatedButton(
+                              onPressed: () => provider.loadMoreDiscoveryFeed(),
+                              child: const Text('Cargar más reseñas'),
+                            ),
+                    ),
+                  );
+                }
                 final review = provider.feed[index];
                 return _buildReviewCard(context, review, provider);
               },
