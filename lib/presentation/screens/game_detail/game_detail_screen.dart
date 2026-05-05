@@ -10,6 +10,9 @@ import '../backlog/widgets/review_dialog.dart'; // ✅ Nuevo
 import '../../../domain/entities/game_backlog_entry.dart';
 import '../../../domain/entities/game_session.dart';
 import '../../../domain/entities/game_list.dart';
+import '../../../domain/entities/community_review.dart'; // ✅ Nuevo
+import '../../providers/community_provider.dart'; // ✅ Nuevo
+import '../../widgets/spoiler_text_widget.dart'; // ✅ Nuevo
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -33,6 +36,10 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   // Datos remotos de IGDB
   Map<String, dynamic>? _apiDetails;
   String? _remotePlatform;
+  
+  // Comunidad
+  List<CommunityReview> _communityReviews = [];
+  bool _isLoadingCommunity = true;
 
   final _remoteDataSource = GameRemoteDataSource();
 
@@ -56,6 +63,32 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       _loadRemoteDetails();
     } else {
       _isLoading = false;
+    }
+    
+    _loadCommunityReviews();
+  }
+
+  Future<void> _loadCommunityReviews() async {
+    if (!mounted) return;
+    
+    final communityProvider = context.read<CommunityProvider?>();
+    if (communityProvider != null) {
+      try {
+        final reviews = await communityProvider.getReviewsForGame(widget.gameId);
+        if (mounted) {
+          setState(() {
+            _communityReviews = reviews;
+            _isLoadingCommunity = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading community reviews: $e');
+        if (mounted) {
+          setState(() => _isLoadingCommunity = false);
+        }
+      }
+    } else {
+      setState(() => _isLoadingCommunity = false);
     }
   }
 
@@ -313,6 +346,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
               // ✅ Nueva Sección de Reseña Personal
               const SizedBox(height: 40),
               _buildReviewSection(),
+              const SizedBox(height: 40),
+              _buildCommunityReviewsSection(), // ✅ Nueva Sección
               const SizedBox(height: 20),
           ],
       );
@@ -399,6 +434,99 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildCommunityReviewsSection() {
+    if (_isLoadingCommunity) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_communityReviews.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Reseñas de la Comunidad', 
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+          const SizedBox(height: 12),
+          const Text('No hay reseñas de otros usuarios para este juego aún.', 
+              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Reseñas de la Comunidad', 
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+        const SizedBox(height: 16),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _communityReviews.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final review = _communityReviews[index];
+            return Card(
+              color: Colors.white.withOpacity(0.05),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundImage: review.userAvatarUrl != null ? NetworkImage(review.userAvatarUrl!) : null,
+                          child: review.userAvatarUrl == null ? Text(review.username[0].toUpperCase()) : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(review.username, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                        if (review.rating != null)
+                          Row(
+                            children: [
+                              const Icon(Icons.star, color: Colors.amber, size: 16),
+                              Text(' ${review.rating}', style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (review.reviewTitle != null && review.reviewTitle!.isNotEmpty)
+                      Text(review.reviewTitle!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    if (review.isSpoiler) ...[
+                       const Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.orange, size: 14),
+                            SizedBox(width: 4),
+                            Text('SPOILER', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SpoilerTextWidget(text: review.notes, style: const TextStyle(color: Colors.white70)),
+                    ] else
+                      Text(review.notes, style: const TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(Icons.favorite, color: review.isLikedByMe ? Colors.red : Colors.grey, size: 14),
+                        const SizedBox(width: 4),
+                        Text('${review.likesCount}', style: TextStyle(color: review.isLikedByMe ? Colors.red : Colors.grey, fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
