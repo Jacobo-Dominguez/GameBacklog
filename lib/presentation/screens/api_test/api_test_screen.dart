@@ -63,9 +63,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Prueba de API RAWG'),
-      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

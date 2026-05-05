@@ -12,16 +12,6 @@ class DiscoveryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Comunidad'),
-        centerTitle: true,
-        leading: context.canPop()
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => context.pop(),
-              )
-            : null,
-      ),
       body: Consumer<CommunityProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {

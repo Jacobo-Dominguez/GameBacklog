@@ -22,16 +22,16 @@ class GameSearchService {
       releaseDate = DateTime.tryParse(releasedStr);
     }
     
-    // Procesar platform (primer plataforma si existe)
+    // Procesar platforms (todas unidas por coma)
     String? platform;
     if (rawgResult.platforms.isNotEmpty) {
-      platform = rawgResult.platforms.first.trim();
+      platform = rawgResult.platforms.join(', ');
     }
     
-    // Procesar genre (primer género si existe)
+    // Procesar genres (todos unidos por coma)
     String? genre;
     if (rawgResult.genres.isNotEmpty) {
-      genre = rawgResult.genres.first.trim();
+      genre = rawgResult.genres.join(', ');
     }
 
     return Game(
@@ -87,8 +87,8 @@ class GameSearchService {
       description: description,
       remoteId: igdbResult['id'] as int?,
       releaseDate: releaseDate,
-      platform: platforms.isNotEmpty ? platforms.first : null,
-      genre: genres.isNotEmpty ? genres.first : null,
+      platform: platforms.isNotEmpty ? platforms.join(', ') : null,
+      genre: genres.isNotEmpty ? genres.join(', ') : null,
       userId: userId.trim(),
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

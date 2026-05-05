@@ -31,10 +31,6 @@ class _JournalScreenState extends State<JournalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mi Diario de Juego'),
-        centerTitle: true,
-      ),
       body: Consumer<BacklogProvider>(
         builder: (context, provider, child) {
           final sessions = provider.recentSessions;

@@ -13,6 +13,7 @@ import '../presentation/screens/collections/collections_screen.dart';
 import '../presentation/screens/collections/collection_detail_screen.dart';
 import '../presentation/screens/discovery/discovery_screen.dart';
 import '../presentation/providers/auth_provider.dart';
+import '../presentation/widgets/main_layout.dart'; // ✅ Nuevo
 
 class AppRouter {
   final AuthProvider authProvider;
@@ -46,69 +47,73 @@ class AppRouter {
         builder: (context, state) => const LoginScreen(),
       ),
 
-      // Rutas privadas
-      GoRoute(
-        path: '/',
-        name: 'home',
-        builder: (context, state) => const BacklogScreen(),
+      // Rutas privadas envueltas en el Layout principal
+      ShellRoute(
+        builder: (context, state, child) => MainLayout(child: child),
+        routes: [
+          GoRoute(
+            path: '/',
+            name: 'home',
+            builder: (context, state) => const BacklogScreen(),
+          ),
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          GoRoute(
+            path: '/edit-profile',
+            name: 'edit-profile',
+            builder: (context, state) => const EditProfileScreen(),
+          ),
+          GoRoute(
+            path: '/user-reviews',
+            name: 'user-reviews',
+            builder: (context, state) => const UserReviewsScreen(),
+          ),
+          GoRoute(
+            path: '/game/:id',
+            name: 'game-detail',
+            builder: (context, state) {
+              final gameId = state.pathParameters['id']!;
+              return GameDetailScreen(gameId: gameId);
+            },
+          ),
+          GoRoute(
+            path: '/api-test',
+            name: 'api-test',
+            builder: (context, state) => const ApiTestScreen(),
+          ),
+          GoRoute(
+            path: '/search',
+            name: 'search',
+            builder: (context, state) => const SearchScreen(),
+          ),
+          GoRoute(
+            path: '/journal',
+            name: 'journal',
+            builder: (context, state) => const JournalScreen(),
+          ),
+          GoRoute(
+            path: '/collections',
+            name: 'collections',
+            builder: (context, state) => const CollectionsScreen(),
+          ),
+          GoRoute(
+            path: '/collections/:id',
+            name: 'collection-detail',
+            builder: (context, state) {
+              final listId = state.pathParameters['id']!;
+              return CollectionDetailScreen(listId: listId);
+            },
+          ),
+          GoRoute(
+            path: '/discovery',
+            name: 'discovery',
+            builder: (context, state) => const DiscoveryScreen(),
+          ),
+        ],
       ),
-      GoRoute(
-        path: '/profile',
-        name: 'profile',
-        builder: (context, state) => const ProfileScreen(),
-      ),
-      GoRoute(
-        path: '/edit-profile',
-        name: 'edit-profile',
-        builder: (context, state) => const EditProfileScreen(),
-      ),
-      GoRoute(
-        path: '/user-reviews',
-        name: 'user-reviews',
-        builder: (context, state) => const UserReviewsScreen(),
-      ),
-      GoRoute(
-        path: '/game/:id',
-        name: 'game-detail',
-        builder: (context, state) {
-          final gameId = state.pathParameters['id']!;
-          return GameDetailScreen(gameId: gameId);
-        },
-      ),
-      GoRoute(
-        path: '/api-test',
-        name: 'api-test',
-        builder: (context, state) => const ApiTestScreen(),
-      ),
-      // ✅ NUEVA RUTA DE BÚSQUEDA (SIN const)
-      GoRoute(
-  path: '/search',
-  name: 'search',
-  builder: (context, state) => const SearchScreen(),
-),
-GoRoute(
-  path: '/journal',
-  name: 'journal',
-  builder: (context, state) => const JournalScreen(),
-),
-GoRoute(
-  path: '/collections',
-  name: 'collections',
-  builder: (context, state) => const CollectionsScreen(),
-),
-GoRoute(
-  path: '/collections/:id',
-  name: 'collection-detail',
-  builder: (context, state) {
-    final listId = state.pathParameters['id']!;
-    return CollectionDetailScreen(listId: listId);
-  },
-),
-GoRoute(
-  path: '/discovery',
-  name: 'discovery',
-  builder: (context, state) => const DiscoveryScreen(),
-),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
