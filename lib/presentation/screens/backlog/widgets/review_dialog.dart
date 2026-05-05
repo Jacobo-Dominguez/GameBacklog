@@ -89,6 +89,12 @@ class _ReviewDialogState extends State<ReviewDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (widget.initialContent != null)
+                  TextButton(
+                    onPressed: _isLoading ? null : _deleteReview,
+                    child: const Text('Borrar', style: TextStyle(color: Colors.red)),
+                  ),
+                const Spacer(),
                 TextButton(
                   onPressed: _isLoading ? null : () => Navigator.pop(context),
                   child: const Text('Cancelar'),
@@ -132,6 +138,38 @@ class _ReviewDialogState extends State<ReviewDialog> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error al guardar la reseña')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteReview() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Borrar reseña?'),
+        content: const Text('Esta acción eliminará el título, las notas y la puntuación de tu reseña.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text('Borrar', style: TextStyle(color: Colors.red))
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    final success = await context.read<BacklogProvider>().deleteReview(widget.entryId);
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (success) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reseña eliminada')),
         );
       }
     }

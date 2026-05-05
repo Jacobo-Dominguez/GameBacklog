@@ -263,6 +263,41 @@ Future<bool> addGameFromSearch(Game game) async {
     }
   }
 
+  Future<bool> deleteReview(String entryId) async {
+    try {
+      final entry = _backlogEntries.firstWhere((e) => e.id == entryId);
+      
+      final updatedEntry = GameBacklogModel(
+        id: entry.id,
+        userId: entry.userId,
+        gameId: entry.gameId,
+        status: entry.status,
+        hoursPlayed: entry.hoursPlayed,
+        rating: null,
+        notes: null,
+        isFavorite: entry.isFavorite,
+        reviewTitle: null,
+        isSpoiler: false,
+        addedDate: entry.addedDate,
+        completedDate: entry.completedDate,
+        lastUpdated: DateTime.now(),
+      );
+
+      await backlogDataSource.updateBacklogEntry(updatedEntry);
+
+      final index = _backlogEntries.indexWhere((e) => e.id == entryId);
+      if (index != -1) {
+        _backlogEntries[index] = updatedEntry;
+      }
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting review: $e');
+      return false;
+    }
+  }
+
   Future<bool> updateGameEntry({
     required String entryId,
     String? status,
