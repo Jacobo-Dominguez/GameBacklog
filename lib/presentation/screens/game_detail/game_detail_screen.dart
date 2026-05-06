@@ -41,12 +41,19 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   List<CommunityReview> _communityReviews = [];
   bool _isLoadingCommunity = true;
 
+  final ScrollController _galleryController = ScrollController();
   final _remoteDataSource = GameRemoteDataSource();
 
   @override
   void initState() {
     super.initState();
     _loadGame();
+  }
+
+  @override
+  void dispose() {
+    _galleryController.dispose();
+    super.dispose();
   }
 
   void _loadGame() {
@@ -977,6 +984,19 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       return Colors.redAccent;
   }
 
+  void _scrollGallery(bool forward) {
+    const double scrollAmount = 400;
+    final double target = forward 
+        ? _galleryController.offset + scrollAmount 
+        : _galleryController.offset - scrollAmount;
+    
+    _galleryController.animateTo(
+      target.clamp(0, _galleryController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
   Widget _buildMediaSection() {
      if (_apiDetails == null || _apiDetails!['screenshots'] == null) return const SizedBox.shrink();
      
@@ -988,31 +1008,101 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
          children: [
              Text('Galería', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
              const SizedBox(height: 16),
-             SizedBox(
-                 height: 180,
-                 child: ListView.builder(
-                     scrollDirection: Axis.horizontal,
-                     itemCount: screenshots.length,
-                     itemBuilder: (context, index) {
-                         String url = screenshots[index]['url'];
-                         url = 'https:${url.replaceAll('t_thumb', 't_720p')}'; 
-                         
-                         return Padding(
-                             padding: const EdgeInsets.only(right: 12),
-                             child: ClipRRect(
-                                 borderRadius: BorderRadius.circular(8),
-                                 child: CachedNetworkImage(
-                                     imageUrl: url,
-                                     placeholder: (_,__) => Container(color: Colors.grey[900], width: 320),
-                                     errorWidget: (_,__,___) => const Icon(Icons.error),
+             Stack(
+               alignment: Alignment.center,
+               children: [
+                 SizedBox(
+                     height: 180,
+                     child: ListView.builder(
+                         controller: _galleryController,
+                         scrollDirection: Axis.horizontal,
+                         itemCount: screenshots.length,
+                         itemBuilder: (context, index) {
+                             String url = screenshots[index]['url'];
+                             url = 'https:${url.replaceAll('t_thumb', 't_720p')}'; 
+                             
+                             return Padding(
+                                 padding: const EdgeInsets.only(right: 12),
+                                 child: InkWell(
+                                     onTap: () => _showFullScreenImage(context, url),
+                                     child: ClipRRect(
+                                         borderRadius: BorderRadius.circular(12),
+                                         child: CachedNetworkImage(
+                                             imageUrl: url,
+                                             fit: BoxFit.cover,
+                                             placeholder: (_,__) => Container(color: Colors.grey[900], width: 320),
+                                             errorWidget: (_,__,___) => const Icon(Icons.error),
+                                         ),
+                                     ),
                                  ),
-                             ),
-                         );
-                     },
+                             );
+                         },
+                     ),
                  ),
+                 
+                 // Flecha Izquierda
+                 Positioned(
+                   left: 8,
+                   child: _buildGalleryArrow(false),
+                 ),
+                 
+                 // Flecha Derecha
+                 Positioned(
+                   right: 8,
+                   child: _buildGalleryArrow(true),
+                 ),
+               ],
              ),
          ],
      );
+  }
+
+  Widget _buildGalleryArrow(bool forward) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(forward ? Icons.arrow_forward_ios : Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+        onPressed: () => _scrollGallery(forward),
+      ),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const CircularProgressIndicator(),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 20,
+              child: CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showEditDialog(BuildContext context, dynamic entry, BacklogProvider provider) {
