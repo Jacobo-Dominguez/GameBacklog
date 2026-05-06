@@ -36,7 +36,7 @@ class _MainLayoutState extends State<MainLayout> {
         context.go('/search');
         break;
       case 2:
-        // TODO: Crear ruta de estadísticas si no existe
+        context.go('/stats');
         break;
       case 3:
         context.go('/profile');

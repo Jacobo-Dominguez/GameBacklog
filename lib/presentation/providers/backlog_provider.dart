@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/datasources/database_helper.dart';
 import '../../data/datasources/game_local_datasource_impl.dart';
@@ -708,5 +709,59 @@ Future<bool> addGameFromSearch(Game game) async {
       );
       await gameDataSource.insertGame(gameModel);
     }
+  }
+
+  // ─── Métodos para Estadísticas Avanzadas ───
+
+  Map<String, int> getGenresDistribution() {
+    final Map<String, int> distribution = {};
+    for (var game in _gamesMap.values) {
+      if (game.genre != null && game.genre!.isNotEmpty) {
+        final genres = game.genre!.split(', ');
+        for (var genre in genres) {
+          final trimmed = genre.trim();
+          if (trimmed.isNotEmpty) {
+            distribution[trimmed] = (distribution[trimmed] ?? 0) + 1;
+          }
+        }
+      }
+    }
+    // Ordenar por cantidad desc
+    final sortedEntries = distribution.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return Map.fromEntries(sortedEntries);
+  }
+
+  Map<String, double> getHoursPerMonth() {
+    final Map<String, int> minutesData = {};
+    final DateFormat formatter = DateFormat('yyyy-MM');
+    
+    // Agrupar sesiones por mes
+    for (var session in _recentSessions) {
+      final key = formatter.format(session.sessionDate);
+      minutesData[key] = (minutesData[key] ?? 0) + session.durationMinutes;
+    }
+
+    // Convertir a horas
+    final Map<String, double> hoursData = {};
+    minutesData.forEach((key, minutes) {
+      hoursData[key] = minutes / 60.0;
+    });
+
+    // Ordenar por fecha asc
+    final sortedKeys = hoursData.keys.toList()..sort();
+    return {for (var k in sortedKeys) k: hoursData[k]!};
+  }
+
+  double getAverageCompletionTime() {
+    final completed = _backlogEntries.where((e) => e.status == 'completed' && e.hoursPlayed > 0).toList();
+    if (completed.isEmpty) return 0;
+    final totalHours = completed.fold(0, (sum, e) => sum + e.hoursPlayed);
+    return totalHours / completed.length;
+  }
+
+  int getLongestGameTime() {
+    if (_backlogEntries.isEmpty) return 0;
+    return _backlogEntries.fold(0, (max, e) => e.hoursPlayed > max ? e.hoursPlayed : max);
   }
 }

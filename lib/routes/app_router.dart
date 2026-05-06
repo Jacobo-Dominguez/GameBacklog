@@ -12,6 +12,7 @@ import '../presentation/screens/profile/user_reviews_screen.dart';
 import '../presentation/screens/collections/collections_screen.dart';
 import '../presentation/screens/collections/collection_detail_screen.dart';
 import '../presentation/screens/discovery/discovery_screen.dart';
+import '../presentation/screens/stats/stats_screen.dart';
 import '../presentation/providers/auth_provider.dart';
 import '../presentation/widgets/main_layout.dart'; // ✅ Nuevo
 
@@ -111,6 +112,11 @@ class AppRouter {
             path: '/discovery',
             name: 'discovery',
             builder: (context, state) => const DiscoveryScreen(),
+          ),
+          GoRoute(
+            path: '/stats',
+            name: 'stats',
+            builder: (context, state) => const StatsScreen(),
           ),
         ],
       ),
