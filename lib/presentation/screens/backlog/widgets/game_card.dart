@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Import go_router
+import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../../domain/entities/game.dart';
 import '../../../../../domain/entities/game_backlog_entry.dart';
+import '../../../../../core/theme/app_theme.dart';
 
-class GameCard extends StatelessWidget {
+class GameCard extends StatefulWidget {
   final GameBacklogEntry entry;
   final Game game;
   final VoidCallback onEdit;
@@ -20,13 +21,44 @@ class GameCard extends StatelessWidget {
     this.showMenu = true,
   });
 
+  @override
+  State<GameCard> createState() => _GameCardState();
+}
+
+class _GameCardState extends State<GameCard> with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+  late AnimationController _hoverController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _glowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _hoverController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.03).animate(
+      CurvedAnimation(parent: _hoverController, curve: Curves.easeOut),
+    );
+    _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _hoverController, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _hoverController.dispose();
+    super.dispose();
+  }
+
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'playing': return Colors.blue;
-      case 'completed': return Colors.green;
-      case 'dropped': return Colors.red;
-      case 'on_hold': return Colors.amber;
-      default: return Colors.orange;
+      case 'playing': return AppColors.statusPlaying;
+      case 'completed': return AppColors.statusCompleted;
+      case 'dropped': return AppColors.statusDropped;
+      case 'on_hold': return AppColors.statusOnHold;
+      default: return AppColors.statusPending;
     }
   }
 
@@ -40,180 +72,302 @@ class GameCard extends StatelessWidget {
     }
   }
 
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'playing': return Icons.play_arrow_rounded;
+      case 'completed': return Icons.check_circle_rounded;
+      case 'dropped': return Icons.cancel_rounded;
+      case 'on_hold': return Icons.pause_circle_rounded;
+      default: return Icons.schedule_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          // Navegar a la pantalla de detalles pasando el objeto Game para carga instantánea
-          context.push('/game/${game.id}', extra: game);
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, // Ajuste al contenido
-          children: [
-            // IMAGEN DE PORTADA
-            SizedBox(
-              height: 120,
-              width: double.infinity,
-              child: game.coverUrl != null && game.coverUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: game.coverUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[200],
-                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                      ),
-                    )
-                  : Container(
-                      color: theme.colorScheme.primary.withOpacity(0.1),
-                      child: Center(
-                        child: Icon(
-                          Icons.videogame_asset,
-                          size: 64,
-                          color: theme.colorScheme.primary.withOpacity(0.5),
-                        ),
-                      ),
-                    ),
-            ),
-            
-            // CONTENIDO
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // TÍTULO Y OPCIONES
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          game.title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (showMenu)
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') onEdit();
-                            if (value == 'delete') onDelete();
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Editar'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, color: Colors.red, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Eliminar', style: TextStyle(color: Colors.red)),
-                                ],
-                              ),
-                            ),
-                          ],
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(Icons.more_vert, size: 20),
-                        ),
-                    ],
+    final statusColor = _getStatusColor(widget.entry.status);
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _isHovered = true);
+        _hoverController.forward();
+      },
+      onExit: (_) {
+        setState(() => _isHovered = false);
+        _hoverController.reverse();
+      },
+      child: AnimatedBuilder(
+        animation: _hoverController,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: statusColor.withOpacity(0.15 * _glowAnimation.value),
+                    blurRadius: 20,
+                    spreadRadius: 2,
                   ),
-                  
-                  const SizedBox(height: 4),
-                  
-                  // PLATAFORMA
-                  if (game.platform != null)
-                    Text(
-                      game.platform!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    
-                  const SizedBox(height: 12),
-                  
-                  // ESTADO Y RATING
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded( // Usar Expanded para el estado si es largo, o mejor dejarlo fijo y mover info a la derecha
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(entry.status).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _getStatusColor(entry.status).withOpacity(0.5),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            _getStatusLabel(entry.status),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: _getStatusColor(entry.status),
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // INFO (Horas y Rating)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (entry.hoursPlayed > 0) ...[
-                            const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${entry.hoursPlayed}h',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          if (entry.rating != null) ...[
-                            const Icon(Icons.star, size: 14, color: Colors.amber),
-                            const SizedBox(width: 2),
-                            Text(
-                              entry.rating.toString(),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Material(
+                  color: AppColors.bgCard,
+                  child: InkWell(
+                    onTap: () => context.push('/game/${widget.game.id}', extra: widget.game),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Cover Image with overlay
+                        Stack(
+                          children: [
+                            SizedBox(
+                              height: 140,
+                              width: double.infinity,
+                              child: widget.game.coverUrl != null && widget.game.coverUrl!.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: widget.game.coverUrl!,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => Container(
+                                        color: AppColors.bgSurface,
+                                        child: Center(
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: statusColor.withOpacity(0.5),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) => Container(
+                                        color: AppColors.bgSurface,
+                                        child: Icon(Icons.broken_image_rounded, size: 36, color: AppColors.textMuted),
+                                      ),
+                                    )
+                                  : Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            statusColor.withOpacity(0.2),
+                                            AppColors.bgSurface,
+                                          ],
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.videogame_asset_rounded,
+                                          size: 48,
+                                          color: statusColor.withOpacity(0.5),
+                                        ),
+                                      ),
+                                    ),
+                            ),
+
+                            // Gradient overlay bottom
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              height: 50,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      AppColors.bgCard.withOpacity(0.9),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Status badge
+                            Positioned(
+                              top: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: statusColor.withOpacity(0.4),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _getStatusIcon(widget.entry.status),
+                                      size: 12,
+                                      color: AppColors.bgDark,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _getStatusLabel(widget.entry.status),
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.bgDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Menu
+                            if (widget.showMenu)
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'edit') widget.onEdit();
+                                    if (value == 'delete') widget.onDelete();
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'edit',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.edit_rounded, size: 18, color: AppColors.accentCyan),
+                                          SizedBox(width: 10),
+                                          Text('Editar'),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete_rounded, color: AppColors.accentRose, size: 18),
+                                          SizedBox(width: 10),
+                                          Text('Eliminar', style: TextStyle(color: AppColors.accentRose)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  icon: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black45,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white70),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        // Content
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Title
+                              Text(
+                                widget.game.title,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                  height: 1.2,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+
+                              if (widget.game.platform != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.game.platform!,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textMuted,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+
+                              const SizedBox(height: 10),
+
+                              // Stats row
+                              Row(
+                                children: [
+                                  if (widget.entry.hoursPlayed > 0) ...[
+                                    _buildStatChip(
+                                      Icons.access_time_rounded,
+                                      '${widget.entry.hoursPlayed}h',
+                                      AppColors.accentCyan,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  if (widget.entry.rating != null)
+                                    _buildStatChip(
+                                      Icons.star_rounded,
+                                      widget.entry.rating.toString(),
+                                      AppColors.accentAmber,
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatChip(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 3),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
