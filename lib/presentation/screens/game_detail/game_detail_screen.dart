@@ -1,19 +1,20 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../domain/entities/game.dart';
 import '../../../data/datasources/game_remote_datasource.dart';
 import '../../providers/backlog_provider.dart';
+import '../../providers/community_provider.dart';
 import '../backlog/widgets/edit_game_dialog.dart';
-import '../backlog/widgets/review_dialog.dart'; // ✅ Nuevo
+import '../backlog/widgets/review_dialog.dart';
+import '../../widgets/session_dialog.dart';
 import '../../../domain/entities/game_backlog_entry.dart';
 import '../../../domain/entities/game_session.dart';
-import '../../../domain/entities/game_list.dart';
-import '../../../domain/entities/community_review.dart'; // ✅ Nuevo
-import '../../providers/community_provider.dart'; // ✅ Nuevo
-import '../../widgets/spoiler_text_widget.dart'; // ✅ Nuevo
-import '../../widgets/session_dialog.dart'; // ✅ Nuevo
+import '../../../domain/entities/community_review.dart';
+import '../../../core/theme/app_theme.dart';
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -33,17 +34,12 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   late Game _game;
   bool _isLoading = true;
   bool _isDescriptionExpanded = false;
-  
-  // Datos remotos de IGDB
   Map<String, dynamic>? _apiDetails;
-  String? _remotePlatform;
-  
-  // Comunidad
-  List<CommunityReview> _communityReviews = [];
-  bool _isLoadingCommunity = true;
-
-  final ScrollController _galleryController = ScrollController();
+  List<String> _platforms = [];
+  List<String> _genres = [];
+  String? _developer;
   final _remoteDataSource = GameRemoteDataSource();
+  final ScrollController _galleryController = ScrollController();
 
   @override
   void initState() {
@@ -72,160 +68,138 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     } else {
       _isLoading = false;
     }
-    
-    _loadCommunityReviews();
-  }
-
-  Future<void> _loadCommunityReviews() async {
-    if (!mounted) return;
-    
-    final communityProvider = context.read<CommunityProvider?>();
-    if (communityProvider != null) {
-      try {
-        final reviews = await communityProvider.getReviewsForGame(widget.gameId);
-        if (mounted) {
-          setState(() {
-            _communityReviews = reviews;
-            _isLoadingCommunity = false;
-          });
-        }
-      } catch (e) {
-        debugPrint('Error loading community reviews: $e');
-        if (mounted) {
-          setState(() => _isLoadingCommunity = false);
-        }
-      }
-    } else {
-      setState(() => _isLoadingCommunity = false);
-    }
   }
 
   Future<void> _loadRemoteDetails() async {
-    // Intentamos cargar datos frescos de IGDB
-    // Si tenemos ID remoto, usamos getGameDetails (más preciso)
-    // Si no, buscamos por nombre (fallback)
-    if (_apiDetails == null) {
-      try {
-        Map<String, dynamic>? details;
-
-        if (_game.remoteId != null) {
-             details = await _remoteDataSource.getGameDetails(_game.remoteId!);
-        }
-        
-        // Fallback: buscar por título si falló el ID o no tenía
-        if (details == null) {
-            final results = await _remoteDataSource.searchGamesRaw(_game.title);
-            if (results.isNotEmpty) {
-                details = results.first;
-            }
-        }
-
-        if (mounted && details != null) {
-          setState(() {
-            _apiDetails = details;
-            
-            // Actualizar plataforma si tenemos datos nuevos
-            if (details!['platforms'] != null) {
-                final platforms = details['platforms'] as List;
-                if (platforms.isNotEmpty) {
-                    _remotePlatform = platforms.map((p) => p['name'] as String).join(', ');
-                }
-            }
-          });
-        }
-      } catch (e) {
-        debugPrint('Error loading details from IGDB: $e');
+    try {
+      Map<String, dynamic>? details;
+      if (_game.remoteId != null) {
+        details = await _remoteDataSource.getGameDetails(_game.remoteId!);
       }
+      if (details == null) {
+        final results = await _remoteDataSource.searchGamesRaw(_game.title);
+        if (results.isNotEmpty) details = results.first;
+      }
+
+      if (mounted && details != null) {
+        setState(() {
+          _apiDetails = details;
+          
+          // Extraer Plataformas
+          if (details!['platforms'] != null) {
+            _platforms = (details['platforms'] as List).map((p) => p['name'] as String).toList();
+          } else if (_game.platform != null) {
+            _platforms = _game.platform!.split(', ');
+          }
+
+          // Extraer Géneros y Temas (Combinados para mayor riqueza)
+          final List<String> allTags = [];
+          if (details['genres'] != null) {
+            allTags.addAll((details['genres'] as List).map((g) => g['name'] as String));
+          }
+          if (details['themes'] != null) {
+            allTags.addAll((details['themes'] as List).map((t) => t['name'] as String));
+          }
+          _genres = allTags.toSet().toList();
+
+          // Extraer desarrollador
+          if (details['involved_companies'] != null) {
+            final companies = details['involved_companies'] as List;
+            final dev = companies.firstWhere((c) => c['developer'] == true, orElse: () => null);
+            if (dev != null) {
+              _developer = dev['company']['name'];
+            } else if (companies.isNotEmpty) {
+              _developer = companies.first['company']['name'];
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading IGDB details: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: AppColors.bgDark,
+        body: Center(child: CircularProgressIndicator(color: AppColors.accentCyan)),
+      );
     }
-    
+
     return Scaffold(
+      backgroundColor: AppColors.bgDark,
       body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
         slivers: [
           _buildSliverAppBar(),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildStatsRow(),
+                  const SizedBox(height: 32),
+                  _buildGenresSection(),
+                  const SizedBox(height: 32),
                   _buildDescriptionSection(),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
+                  _buildMediaGallery(),
+                  const SizedBox(height: 32),
+                  _buildUserBacklogSections(),
+                  const SizedBox(height: 32),
+                  _buildCommunityReviewsSection(),
+                  const SizedBox(height: 120),
                 ],
               ),
             ),
           ),
         ],
       ),
-      floatingActionButton: Consumer<BacklogProvider>(
-        builder: (context, provider, child) {
-          final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
-              ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
-              : null;
-          
-          if (entry != null) {
-              return FloatingActionButton.extended(
-                onPressed: () => _showEditDialog(context, entry, provider),
-                icon: const Icon(Icons.edit, color: Colors.white),
-                label: const Text('Gestionar', style: TextStyle(color: Colors.white)),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-              );
-          } else {
-              return FloatingActionButton.extended(
-                onPressed: () => _addToBacklog(context, provider),
-                icon: const Icon(Icons.add),
-                label: const Text('Agregar'),
-                backgroundColor: Colors.green,
-              );
-          }
-        },
-      ),
+      floatingActionButton: _buildActionButton(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
   Widget _buildSliverAppBar() {
+    final coverUrl = _game.coverUrl?.replaceAll('t_cover_big', 't_720p').replaceAll('t_thumb', 't_720p');
+
     return SliverAppBar(
-      expandedHeight: 420.0,
+      expandedHeight: 480.0,
       pinned: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      leading: Center(
-        child: _buildCircularButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+      stretch: true,
+      backgroundColor: AppColors.bgDark,
+      leading: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: _buildBlurButton(
+          icon: Icons.arrow_back_rounded,
+          onPressed: () => context.pop(),
         ),
       ),
       actions: [
-        // ✅ Botón de Favorito
         Consumer<BacklogProvider>(
           builder: (context, provider, _) {
             final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
                 ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
                 : null;
             
-            if (entry == null) return const SizedBox.shrink();
-            
             return Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildCircularButton(
-                  icon: Icon(
-                    entry.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: entry.isFavorite ? Colors.red : Colors.white,
+                if (entry != null) ...[
+                  _buildBlurButton(
+                    icon: Icons.playlist_add_rounded,
+                    tooltip: 'Añadir a colección',
+                    onPressed: () => _showAddToListSheet(context, provider),
                   ),
-                  onPressed: () => provider.toggleFavorite(entry.id),
-                ),
-                const SizedBox(width: 8),
-                _buildCircularButton(
-                  icon: const Icon(Icons.playlist_add, color: Colors.white),
-                  tooltip: 'Añadir a colección',
-                  onPressed: () => _showAddToListSheet(context, provider),
-                ),
+                  const SizedBox(width: 8),
+                  _buildBlurButton(
+                    icon: entry.isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    color: entry.isFavorite ? AppColors.accentRose : Colors.white,
+                    onPressed: () => provider.toggleFavorite(entry.id),
+                  ),
+                ],
                 const SizedBox(width: 16),
               ],
             );
@@ -233,88 +207,69 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
         ),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        collapseMode: CollapseMode.pin,
+        stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
         background: Stack(
           fit: StackFit.expand,
           children: [
-            // Fondo difuminado/oscurecido
-            if (_game.coverUrl != null && _game.coverUrl!.isNotEmpty)
-              Opacity(
-                opacity: 0.5,
-                child: CachedNetworkImage(
-                  imageUrl: _game.coverUrl!.replaceAll('t_cover_big', 't_720p').replaceAll('t_thumb', 't_720p'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            
-            // Gradiente para asegurar legibilidad
-            const DecoratedBox(
+            if (coverUrl != null)
+              CachedNetworkImage(imageUrl: coverUrl, fit: BoxFit.cover),
+            Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.black],
-                  stops: [0.0, 1.0],
+                  colors: [Colors.black.withOpacity(0.2), AppColors.bgDark.withOpacity(0.8), AppColors.bgDark],
+                  stops: const [0.0, 0.7, 1.0],
                 ),
               ),
             ),
-
-            // Contenido Principal (Carátula + Info)
             Positioned(
-              bottom: 20,
-              left: 20,
-              right: 20,
+              bottom: 24,
+              left: 24,
+              right: 24,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Portada como "Carta"
-                  Container(
-                    width: 140,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          blurRadius: 15,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: _game.coverUrl != null && _game.coverUrl!.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: _game.coverUrl!.replaceAll('t_cover_big', 't_720p').replaceAll('t_thumb', 't_720p'),
-                              fit: BoxFit.cover,
-                            )
-                          : Container(
-                              color: Colors.grey[800],
-                              child: const Icon(Icons.videogame_asset, size: 50),
-                            ),
+                  Hero(
+                    tag: 'game_cover_${_game.id}',
+                    child: Container(
+                      width: 140, height: 200,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20, offset: const Offset(0, 10))],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: coverUrl != null
+                            ? CachedNetworkImage(imageUrl: coverUrl, fit: BoxFit.cover)
+                            : Container(color: AppColors.bgSurface, child: const Icon(Icons.videogame_asset, size: 50)),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 20),
-                  
-                  // Título e Info
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _game.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            shadows: [Shadow(color: Colors.black, blurRadius: 8)],
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        if (_developer != null)
+                          Text(_developer!.toUpperCase(), style: GoogleFonts.inter(color: AppColors.accentCyan, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        Text(_game.title, style: GoogleFonts.outfit(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, height: 1.1)),
                         const SizedBox(height: 12),
-                        _buildHeaderInfo(isCompact: true),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              if (_game.releaseDate != null)
+                                _buildConsistentChip('${_game.releaseDate!.year}'),
+                              const SizedBox(width: 8),
+                              ..._platforms.map((p) => Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: _buildConsistentChip(p),
+                              )).toList(),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -327,274 +282,113 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildHeaderInfo({bool isCompact = false}) {
-    List<String> platforms = [];
-    if (_remotePlatform != null) {
-        platforms = _remotePlatform!.split(', ');
-    } else if (_game.platform != null) {
-        platforms = _game.platform!.split(', ');
-    }
-    
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        ...platforms.map((p) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white24, width: 1),
-            ),
-            child: Text(
-                p, 
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)
-            ),
-        )),
-        if (_game.releaseDate != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5), width: 1),
-            ),
-            child: Text(
-                '${_game.releaseDate!.year}', 
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCircularButton({required Widget icon, required VoidCallback onPressed, String? tooltip}) {
+  Widget _buildConsistentChip(String label) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
-        shape: BoxShape.circle,
+        color: AppColors.accentTeal.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.accentTeal.withOpacity(0.2)),
       ),
-      child: IconButton(
-        icon: icon,
-        onPressed: onPressed,
-        tooltip: tooltip,
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.accentTeal,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 
-  Widget _buildDescriptionSection() {
-      String descriptionText = 'Sin descripción disponible.';
-      
-      if (_apiDetails != null) {
-          final summary = _apiDetails!['summary'] as String?;
-          final storyline = _apiDetails!['storyline'] as String?;
-          if (summary != null || storyline != null) {
-              descriptionText = [summary, storyline].where((e) => e != null).join('\n\n');
-          }
-      } else if (_game.description != null && _game.description!.isNotEmpty) {
-          descriptionText = _game.description!;
-      }
-
-      // Géneros
-      List<String> genresToShow = [];
-      if (_apiDetails != null && _apiDetails!['genres'] != null) {
-          genresToShow = (_apiDetails!['genres'] as List).map((g) => g['name'] as String).toList();
-      } else if (_game.genre != null) {
-          genresToShow = _game.genre!.split(', ');
-      }
-
-      return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-              if (genresToShow.isNotEmpty) ...[
-                  Text('Géneros', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
-                  const SizedBox(height: 12),
-                  Wrap(
-                      spacing: 8, 
-                      runSpacing: 8,
-                      children: genresToShow.take(4).map((g) => Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.white24, width: 1),
-                          ),
-                          child: Text(
-                              g, 
-                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)
-                          ),
-                      )).toList()
-                  ),
-                  const SizedBox(height: 24),
-              ],
-              
-              Text('Acerca del juego', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-              const SizedBox(height: 12),
-              
-              InkWell(
-                  onTap: () => setState(() => _isDescriptionExpanded = !_isDescriptionExpanded),
-                  child: Column(
-                      children: [
-                          Text(
-                              descriptionText,
-                              style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.5),
-                              maxLines: _isDescriptionExpanded ? null : 6,
-                              overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Icon(
-                              _isDescriptionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                              color: Colors.blue,
-                          ),
-                      ],
-                  ),
-              ),
-              
-              // Estadísticas de IGDB
-              if (_apiDetails != null) ...[
-                  const SizedBox(height: 32),
-                  _buildIgdbStats(),
-                  const SizedBox(height: 24),
-                  _buildMediaSection(), // Galería de screenshots
-              ],
-
-              // ✅ Nueva Sección de Timeline y Reseña
-              Consumer<BacklogProvider>(
-                builder: (context, provider, _) {
-                  final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
-                      ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
-                      : null;
-
-                  if (entry == null) return const SizedBox.shrink();
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 32),
-                      _buildTimelineSection(entry),
-                      const SizedBox(height: 40),
-                      _buildReviewSection(entry),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 40),
-              _buildCommunityReviewsSection(), // ✅ Nueva Sección
-              const SizedBox(height: 20),
-          ],
-      );
-  }
-
-  Widget _buildReviewSection(GameBacklogEntry entry) {
-        final hasReview = (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty) || 
-                         (entry.notes != null && entry.notes!.isNotEmpty);
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(hasReview ? 'Tu Reseña' : 'Sin Reseña', 
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-            const SizedBox(height: 12),
-            Card(
-              color: Colors.grey[900],
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Text(
-                      entry.reviewTitle!,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                  ),
-                    if (entry.isSpoiler)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
-                            SizedBox(width: 4),
-                            Text('SPOILERS', style: TextStyle(color: Colors.orange, fontSize: 11, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    Text(
-                      entry.notes?.isNotEmpty == true 
-                          ? entry.notes! 
-                          : 'Aún no has escrito una reseña.',
-                      style: TextStyle(
-                        color: entry.notes?.isNotEmpty == true ? Colors.white70 : Colors.grey,
-                        fontStyle: entry.notes?.isNotEmpty == true ? null : FontStyle.italic,
-                        fontSize: 15,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showReviewDialog(context, entry),
-                        icon: Icon(hasReview ? Icons.edit : Icons.add_comment),
-                        label: Text(hasReview ? 'Editar Reseña' : 'Escribir Reseña'),
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.blue),
-                      ),
-                    ),
-                    _buildSessionsSection(context, entry),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
+  Widget _buildGenresSection() {
+    if (_genres.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Géneros y Temas', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _genres.map((g) => _buildConsistentChip(g)).toList(),
         ),
       ],
     );
   }
 
-  Widget _buildTimelineSection(GameBacklogEntry? entry) {
-    if (entry == null) return const SizedBox.shrink();
+  Widget _buildBlurButton({required IconData icon, required VoidCallback onPressed, Color color = Colors.white, String? tooltip}) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            child: IconButton(icon: Icon(icon, color: color, size: 22), onPressed: onPressed),
+          ),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildStatsRow() {
+    final apiRating = _apiDetails != null && _apiDetails!['total_rating'] != null 
+        ? (_apiDetails!['total_rating'] as num).toStringAsFixed(1) 
+        : 'N/A';
+
+    return Consumer<BacklogProvider>(
+      builder: (context, provider, _) {
+        final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
+            ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
+            : null;
+
+        return Row(
+          children: [
+            _buildStatItem('IGDB Score', apiRating, Icons.auto_awesome_rounded, AppColors.accentAmber),
+            const SizedBox(width: 12),
+            _buildStatItem('Mi Nota', entry?.rating?.toString() ?? '-', Icons.star_rounded, AppColors.accentPurple),
+            const SizedBox(width: 12),
+            _buildStatItem('Tiempo', '${entry?.hoursPlayed ?? 0}h', Icons.timer_rounded, AppColors.accentCyan),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.1))),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 8),
+            Text(value, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Text(label, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDescriptionSection() {
+    final description = _apiDetails?['summary'] ?? _game.description ?? 'Sin descripción.';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Línea de Tiempo', 
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+        Text('Acerca del juego', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
-          ),
+        InkWell(
+          onTap: () => setState(() => _isDescriptionExpanded = !_isDescriptionExpanded),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTimelineRow(
-                icon: Icons.play_arrow_rounded,
-                label: 'Empezado el',
-                date: entry.startDate,
-                color: Colors.greenAccent,
-                onTap: () => _selectEntryDate(entry, true),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(color: Colors.white10, indent: 32),
-              ),
-              _buildTimelineRow(
-                icon: Icons.flag_rounded,
-                label: 'Finalizado el',
-                date: entry.endDate,
-                color: Colors.redAccent,
-                onTap: () => _selectEntryDate(entry, false),
-              ),
+              Text(description, style: GoogleFonts.inter(fontSize: 15, color: AppColors.textSecondary, height: 1.6), maxLines: _isDescriptionExpanded ? null : 4, overflow: _isDescriptionExpanded ? TextOverflow.visible : TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+              Row(children: [Text(_isDescriptionExpanded ? 'Mostrar menos' : 'Leer más', style: const TextStyle(color: AppColors.accentCyan, fontSize: 13, fontWeight: FontWeight.bold)), Icon(_isDescriptionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: AppColors.accentCyan, size: 16)]),
             ],
           ),
         ),
@@ -602,244 +396,217 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildTimelineRow({
-    required IconData icon,
-    required String label,
-    required DateTime? date,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                Text(
-                  date != null ? '${date.day}/${date.month}/${date.year}' : 'Pendiente',
-                  style: TextStyle(
-                    color: date != null ? Colors.white : Colors.white24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Icon(Icons.edit_calendar, color: Colors.white24, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _selectEntryDate(GameBacklogEntry entry, bool isStart) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: (isStart ? entry.startDate : entry.endDate) ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-
-    if (picked != null) {
-      final provider = context.read<BacklogProvider>();
-      if (isStart) {
-        await provider.setStartDate(entry.id, picked);
-      } else {
-        await provider.setEndDate(entry.id, picked);
-      }
-      setState(() {});
+  Widget _buildMediaGallery() {
+    List screenshots = [];
+    if (_apiDetails != null) {
+      if (_apiDetails!['screenshots'] != null) screenshots.addAll(_apiDetails!['screenshots'] as List);
+      if (_apiDetails!['artworks'] != null) screenshots.addAll(_apiDetails!['artworks'] as List);
     }
-  }
-
-  Widget _buildCommunityReviewsSection() {
-    if (_isLoadingCommunity) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_communityReviews.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Reseñas de la Comunidad', 
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-          const SizedBox(height: 12),
-          const Text('No hay reseñas de otros usuarios para este juego aún.', 
-              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Reseñas de la Comunidad', 
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
-        const SizedBox(height: 16),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _communityReviews.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final review = _communityReviews[index];
-            return Card(
-              color: Colors.white.withOpacity(0.05),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 14,
-                          backgroundImage: review.userAvatarUrl != null ? NetworkImage(review.userAvatarUrl!) : null,
-                          child: review.userAvatarUrl == null ? Text(review.username[0].toUpperCase()) : null,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(review.username, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                        if (review.rating != null)
-                          Row(
-                            children: [
-                              const Icon(Icons.star, color: Colors.amber, size: 16),
-                              Text(' ${review.rating}', style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (review.reviewTitle != null && review.reviewTitle!.isNotEmpty)
-                      Text(review.reviewTitle!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    if (review.isSpoiler) ...[
-                       const Row(
-                          children: [
-                            Icon(Icons.warning, color: Colors.orange, size: 14),
-                            SizedBox(width: 4),
-                            Text('SPOILER', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        SpoilerTextWidget(text: review.notes, style: const TextStyle(color: Colors.white70)),
-                    ] else
-                      Text(review.notes, style: const TextStyle(color: Colors.white70)),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Icon(Icons.favorite, color: review.isLikedByMe ? Colors.red : Colors.grey, size: 14),
-                        const SizedBox(width: 4),
-                        Text('${review.likesCount}', style: TextStyle(color: review.isLikedByMe ? Colors.red : Colors.grey, fontSize: 12)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSessionsSection(BuildContext context, GameBacklogEntry entry) {
+    
+    if (screenshots.isEmpty) return const SizedBox.shrink();
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Sesiones de Juego',
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            Text('Galería', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Row(
+              children: [
+                _buildGalleryArrow(Icons.chevron_left, () {
+                  _galleryController.animateTo(_galleryController.offset - 300, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                }),
+                const SizedBox(width: 8),
+                _buildGalleryArrow(Icons.chevron_right, () {
+                  _galleryController.animateTo(_galleryController.offset + 300, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                }),
+              ],
             ),
-            TextButton.icon(
-              onPressed: () => _showAddSessionDialog(context, entry.gameId),
-              icon: const Icon(Icons.add, size: 20),
-              label: const Text('Registrar Sesión'),
-            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 160,
+          child: ListView.builder(
+            controller: _galleryController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: screenshots.length,
+            itemBuilder: (context, index) {
+              final url = (screenshots[index]['url'] as String).replaceAll('t_thumb', 't_720p');
+              return GestureDetector(
+                onTap: () => _showImageGallery(screenshots, index),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  width: 280,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(imageUrl: 'https:$url', fit: BoxFit.cover, placeholder: (context, url) => Container(color: AppColors.bgSurface)),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGalleryArrow(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: AppColors.accentCyan, size: 24)),
+    );
+  }
+
+  void _showImageGallery(List screenshots, int initialIndex) {
+    showDialog(
+      context: context,
+      builder: (context) => Stack(
+        children: [
+          PageView.builder(
+            controller: PageController(initialPage: initialIndex),
+            itemCount: screenshots.length,
+            itemBuilder: (context, index) {
+              final url = (screenshots[index]['url'] as String).replaceAll('t_thumb', 't_1080p');
+              return InteractiveViewer(child: CachedNetworkImage(imageUrl: 'https:$url', fit: BoxFit.contain));
+            },
+          ),
+          Positioned(top: 40, right: 20, child: _buildBlurButton(icon: Icons.close, onPressed: () => Navigator.pop(context))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserBacklogSections() {
+    return Consumer<BacklogProvider>(
+      builder: (context, provider, _) {
+        final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
+            ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
+            : null;
+
+        if (entry == null) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTimelineSection(entry),
+            const SizedBox(height: 32),
+            _buildReviewSection(entry),
+            const SizedBox(height: 32),
+            _buildSessionsSection(context, entry, provider),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTimelineSection(GameBacklogEntry entry) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Línea de Tiempo', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+          child: Column(
+            children: [
+              _buildTimelineRow(Icons.play_arrow_rounded, 'Empezado', entry.startDate, AppColors.statusPlaying, () => _selectDate(entry, true)),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(color: Colors.white10, indent: 32)),
+              _buildTimelineRow(Icons.flag_rounded, 'Finalizado', entry.endDate, AppColors.statusCompleted, () => _selectDate(entry, false)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineRow(IconData icon, String label, DateTime? date, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 18)),
+          const SizedBox(width: 16),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Text(date != null ? '${date.day}/${date.month}/${date.year}' : 'Pendiente', style: TextStyle(color: date != null ? Colors.white : Colors.white24, fontWeight: FontWeight.bold)),
+          ]),
+          const Spacer(),
+          const Icon(Icons.edit_calendar_rounded, color: Colors.white24, size: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewSection(GameBacklogEntry entry) {
+    final hasReview = (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty) || (entry.notes != null && entry.notes!.isNotEmpty);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Tu Reseña', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            TextButton.icon(onPressed: () => _showReviewDialog(context, entry), icon: Icon(hasReview ? Icons.edit : Icons.add_comment, size: 16), label: Text(hasReview ? 'Editar' : 'Escribir')),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (entry.reviewTitle != null) Text(entry.reviewTitle!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              if (entry.isSpoiler) Container(margin: const EdgeInsets.symmetric(vertical: 8), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: AppColors.accentRose.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: const Text('SPOILERS', style: TextStyle(color: AppColors.accentRose, fontSize: 10, fontWeight: FontWeight.bold))),
+              Text(entry.notes ?? 'No has escrito ninguna nota todavía.', style: TextStyle(color: entry.notes != null ? AppColors.textSecondary : AppColors.textMuted, fontStyle: entry.notes != null ? null : FontStyle.italic)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSessionsSection(BuildContext context, GameBacklogEntry entry, BacklogProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Sesiones de Juego', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            TextButton.icon(onPressed: () => _showAddSessionDialog(context, entry.gameId), icon: const Icon(Icons.add_rounded, size: 16), label: const Text('Registrar')),
           ],
         ),
         const SizedBox(height: 12),
         FutureBuilder<List<GameSession>>(
-          future: context.read<BacklogProvider>().getSessionsForGame(entry.gameId),
+          future: provider.getSessionsForGame(entry.gameId),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            
             final sessions = snapshot.data ?? [];
-            if (sessions.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    'Aún no has registrado ninguna sesión.',
-                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-                  ),
-                ),
-              );
-            }
-
-            return ListView.separated(
+            if (sessions.isEmpty) return Container(padding: const EdgeInsets.all(16), width: double.infinity, decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16)), child: const Center(child: Text('Sin sesiones registradas', style: TextStyle(color: AppColors.textMuted))));
+            return ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: sessions.length > 3 ? 3 : sessions.length, // Mostrar últimas 3
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemCount: sessions.length.clamp(0, 3),
               itemBuilder: (context, index) {
-                final session = sessions[index];
+                final s = sessions[index];
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(12)),
                   child: Row(
                     children: [
-                      Icon(Icons.access_time, color: Theme.of(context).primaryColor, size: 20),
+                      const Icon(Icons.history_toggle_off_rounded, color: AppColors.accentCyan, size: 16),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${session.durationMinutes >= 60 ? '${(session.durationMinutes / 60).floor()}h ' : ''}${session.durationMinutes % 60} min - ${session.sessionDate.day}/${session.sessionDate.month}/${session.sessionDate.year}',
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-                            ),
-                            if (session.description != null && session.description!.isNotEmpty)
-                              Text(
-                                session.description!,
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
-                        onPressed: () => _showSessionOptions(context, session),
-                      ),
+                      Text('${s.sessionDate.day}/${s.sessionDate.month}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      Text('${s.durationMinutes} min', style: const TextStyle(color: AppColors.textSecondary)),
                     ],
                   ),
                 );
@@ -851,83 +618,117 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  void _showSessionOptions(BuildContext context, GameSession session) {
+  Widget _buildCommunityReviewsSection() {
+    final communityProvider = context.read<CommunityProvider>();
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Reseñas de la Comunidad', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        const SizedBox(height: 16),
+        FutureBuilder<List<CommunityReview>>(
+          future: communityProvider.getReviewsForGame(widget.gameId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator(color: AppColors.accentCyan));
+            }
+            
+            final reviews = snapshot.data ?? [];
+            if (reviews.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                width: double.infinity,
+                decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16)),
+                child: const Center(child: Text('Nadie ha escrito una reseña todavía.', style: TextStyle(color: AppColors.textMuted))),
+              );
+            }
+
+            final displayReviews = reviews.take(4).toList();
+
+            return Column(
+              children: [
+                ...displayReviews.map((review) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.05))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(radius: 12, backgroundColor: AppColors.accentTeal.withOpacity(0.2), child: Text(review.username[0].toUpperCase(), style: const TextStyle(fontSize: 10, color: AppColors.accentTeal))),
+                          const SizedBox(width: 8),
+                          Text(review.username, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Spacer(),
+                          Row(children: [const Icon(Icons.star_rounded, color: AppColors.accentAmber, size: 14), const SizedBox(width: 4), Text('${review.rating}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13))]),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (review.reviewTitle != null) Text(review.reviewTitle!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(review.notes ?? '', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), maxLines: 3, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                )),
+                if (reviews.length > 4)
+                  TextButton(onPressed: () => context.push('/discovery'), child: const Text('Ver todas las reseñas')),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showAddToListSheet(BuildContext context, BacklogProvider provider) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
+      backgroundColor: AppColors.bgDark,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Editar Sesión'),
-              onTap: () {
-                Navigator.pop(context);
-                _showEditSessionDialog(context, session);
+            Text('Añadir a colección', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 16),
+            ...provider.gameLists.map((list) => ListTile(
+              leading: const Icon(Icons.collections_bookmark_rounded, color: AppColors.accentCyan),
+              title: Text(list.name, style: const TextStyle(color: AppColors.textPrimary)),
+              onTap: () async {
+                final ok = await provider.addGameToList(list.id, widget.gameId);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Añadido a ${list.name}' : 'Ya está en esta lista')));
+                }
               },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Eliminar Sesión', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteConfirmation(context, session);
-              },
-            ),
+            )),
           ],
         ),
       ),
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, GameSession session) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('¿Eliminar sesión?'),
-        content: const Text('Esta acción restará el tiempo de esta sesión del total de horas jugadas.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          TextButton(
-            onPressed: () async {
-              final success = await context.read<BacklogProvider>().deleteGameSession(session.id);
-              if (success && context.mounted) {
-                Navigator.pop(context);
-                setState(() {});
-              }
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+  Widget _buildActionButton() {
+    return Consumer<BacklogProvider>(
+      builder: (context, provider, _) {
+        final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId) : null;
+        return Container(
+          width: 220,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(30), gradient: entry != null ? AppColors.primaryGradient : AppColors.accentGradient, boxShadow: [BoxShadow(color: (entry != null ? AppColors.accentCyan : AppColors.accentPurple).withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 8))]),
+          child: FloatingActionButton.extended(onPressed: () => entry != null ? _showEditDialog(context, entry, provider) : _addToBacklog(context, provider), backgroundColor: Colors.transparent, elevation: 0, icon: Icon(entry != null ? Icons.edit_rounded : Icons.add_rounded, color: entry != null ? AppColors.bgDark : Colors.white), label: Text(entry != null ? 'GESTIONAR' : 'AÑADIR', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: entry != null ? AppColors.bgDark : Colors.white, letterSpacing: 1.2))),
+        );
+      },
     );
   }
 
-  void _showEditSessionDialog(BuildContext context, GameSession session) {
-    _showSessionDialog(context, gameId: session.gameId, existingSession: session);
-  }
-
-  void _showAddSessionDialog(BuildContext context, String gameId) {
-    _showSessionDialog(context, gameId: gameId);
-  }
-
-  void _showSessionDialog(BuildContext context, {required String gameId, GameSession? existingSession}) {
-    showDialog(
-      context: context,
-      builder: (context) => SessionDialog(
-        gameId: gameId,
-        existingSession: existingSession,
-      ),
-    ).then((success) {
-      if (success == true && mounted) {
-        setState(() {});
-      }
-    });
+  void _showEditDialog(BuildContext context, GameBacklogEntry entry, BacklogProvider provider) {
+    showDialog(context: context, builder: (context) => EditGameDialog(entry: entry, game: _game, onUpdate: ({status, hoursPlayed, rating, notes}) async => await provider.updateGameEntry(entryId: entry.id, status: status, hoursPlayed: hoursPlayed, rating: rating, notes: notes)));
   }
 
   void _showReviewDialog(BuildContext context, GameBacklogEntry entry) {
     showDialog(
-      context: context,
+      context: context, 
       builder: (context) => ReviewDialog(
         entryId: entry.id,
         initialTitle: entry.reviewTitle,
@@ -937,370 +738,21 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildIgdbStats() {
-      final rating = _apiDetails!['aggregated_rating'] ?? _apiDetails!['total_rating'] ?? _apiDetails!['rating'];
-      final companies = _apiDetails!['involved_companies'] as List?;
-      
-      return Column(
-          children: [
-              Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                      if (rating != null)
-                          _buildStatBadge(
-                              'IGDB Score', 
-                              (rating as num).toInt().toString(), 
-                              _getRatingColor((rating as num).toInt()),
-                              Icons.star
-                          ),
-                  ],
-              ),
-              if (companies != null && companies.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  const Divider(color: Colors.white24),
-                  const SizedBox(height: 12),
-                  Text(
-                      'Desarrollado por', 
-                      style: TextStyle(color: Colors.grey[400], fontSize: 14)
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                       (companies.first['company']['name'] as String),
-                       style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-              ]
-          ],
-      );
+  void _showAddSessionDialog(BuildContext context, String gameId) {
+    showDialog(context: context, builder: (context) => SessionDialog(gameId: gameId));
   }
 
-  Widget _buildStatBadge(String label, String value, Color color, IconData icon) {
-      return Column(
-          children: [
-              Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: color, width: 3),
-                      color: color.withOpacity(0.1),
-                  ),
-                  child: Text(
-                      value,
-                      style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-              ),
-              const SizedBox(height: 8),
-              Text(label, style: const TextStyle(color: Colors.grey)),
-          ],
-      );
-  }
-
-  Color _getRatingColor(int score) {
-      if (score >= 75) return Colors.greenAccent;
-      if (score >= 50) return Colors.amberAccent;
-      return Colors.redAccent;
-  }
-
-  void _scrollGallery(bool forward) {
-    const double scrollAmount = 400;
-    final double target = forward 
-        ? _galleryController.offset + scrollAmount 
-        : _galleryController.offset - scrollAmount;
-    
-    _galleryController.animateTo(
-      target.clamp(0, _galleryController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
-
-  Widget _buildMediaSection() {
-     if (_apiDetails == null || _apiDetails!['screenshots'] == null) return const SizedBox.shrink();
-     
-     final screenshots = _apiDetails!['screenshots'] as List;
-     if (screenshots.isEmpty) return const SizedBox.shrink();
-
-     return Column(
-         crossAxisAlignment: CrossAxisAlignment.start,
-         children: [
-             Text('Galería', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
-             const SizedBox(height: 16),
-             Stack(
-               alignment: Alignment.center,
-               children: [
-                 SizedBox(
-                     height: 180,
-                     child: ListView.builder(
-                         controller: _galleryController,
-                         scrollDirection: Axis.horizontal,
-                         itemCount: screenshots.length,
-                         itemBuilder: (context, index) {
-                             String url = screenshots[index]['url'];
-                             url = 'https:${url.replaceAll('t_thumb', 't_720p')}'; 
-                             
-                             return Padding(
-                                 padding: const EdgeInsets.only(right: 12),
-                                 child: InkWell(
-                                     onTap: () => _showFullScreenImage(context, url),
-                                     child: ClipRRect(
-                                         borderRadius: BorderRadius.circular(12),
-                                         child: CachedNetworkImage(
-                                             imageUrl: url,
-                                             fit: BoxFit.cover,
-                                             placeholder: (_,__) => Container(color: Colors.grey[900], width: 320),
-                                             errorWidget: (_,__,___) => const Icon(Icons.error),
-                                         ),
-                                     ),
-                                 ),
-                             );
-                         },
-                     ),
-                 ),
-                 
-                 // Flecha Izquierda
-                 Positioned(
-                   left: 8,
-                   child: _buildGalleryArrow(false),
-                 ),
-                 
-                 // Flecha Derecha
-                 Positioned(
-                   right: 8,
-                   child: _buildGalleryArrow(true),
-                 ),
-               ],
-             ),
-         ],
-     );
-  }
-
-  Widget _buildGalleryArrow(bool forward) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        icon: Icon(forward ? Icons.arrow_forward_ios : Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-        onPressed: () => _scrollGallery(forward),
-      ),
-    );
-  }
-
-  void _showFullScreenImage(BuildContext context, String imageUrl) {
-    showDialog(
-      context: context,
-      builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.contain,
-                  placeholder: (_, __) => const CircularProgressIndicator(),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 40,
-              right: 20,
-              child: CircleAvatar(
-                backgroundColor: Colors.black54,
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditDialog(BuildContext context, dynamic entry, BacklogProvider provider) {
-      showDialog(
-        context: context,
-        builder: (context) => EditGameDialog(
-          entry: entry,
-          game: _game,
-          onUpdate: ({status, hoursPlayed, rating, notes}) async {
-            final success = await provider.updateGameEntry(
-              entryId: entry.id,
-              status: status,
-              hoursPlayed: hoursPlayed,
-              rating: rating,
-              notes: notes,
-            );
-
-            if (success && context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Juego actualizado')),
-              );
-              setState(() {}); 
-            }
-          },
-        ),
-      );
+  Future<void> _selectDate(GameBacklogEntry entry, bool isStart) async {
+    final picked = await showDatePicker(context: context, initialDate: (isStart ? entry.startDate : entry.endDate) ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 365)));
+    if (picked != null) {
+      final p = context.read<BacklogProvider>();
+      isStart ? await p.setStartDate(entry.id, picked) : await p.setEndDate(entry.id, picked);
+      setState(() {});
+    }
   }
 
   Future<void> _addToBacklog(BuildContext context, BacklogProvider provider) async {
-      final success = await provider.addGameFromSearch(_game);
-      if (success && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Juego agregado al backlog')),
-          );
-      }
-  }
-
-  void _showAddToListSheet(BuildContext context, BacklogProvider provider) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final lists = provider.gameLists;
-
-            if (lists.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.collections_bookmark_outlined, size: 48, color: Colors.grey[500]),
-                    const SizedBox(height: 16),
-                    const Text('No tienes colecciones aún'),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showQuickCreateList(context, provider);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Crear Colección'),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              );
-            }
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[400],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Añadir a colección',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showQuickCreateList(context, provider);
-                          },
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Nueva'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...lists.map((list) {
-                    return FutureBuilder<List<GameList>>(
-                      future: provider.getListsForGame(widget.gameId),
-                      builder: (context, snapshot) {
-                        final containingLists = snapshot.data ?? [];
-                        final isInList = containingLists.any((l) => l.id == list.id);
-
-                        return CheckboxListTile(
-                          title: Text(list.name),
-                          subtitle: list.description != null
-                              ? Text(list.description!, maxLines: 1, overflow: TextOverflow.ellipsis)
-                              : null,
-                          secondary: Icon(
-                            Icons.collections_bookmark,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          value: isInList,
-                          onChanged: (value) async {
-                            if (value == true) {
-                              await provider.addGameToList(list.id, widget.gameId);
-                            } else {
-                              await provider.removeGameFromList(list.id, widget.gameId);
-                            }
-                            setSheetState(() {});
-                          },
-                        );
-                      },
-                    );
-                  }),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showQuickCreateList(BuildContext context, BacklogProvider provider) {
-    final nameController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nueva Colección'),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Nombre',
-            hintText: 'Ej: RPGs favoritos',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              if (name.isEmpty) return;
-
-              final success = await provider.createGameList(name: name);
-              if (success && context.mounted) {
-                Navigator.pop(context);
-                // Abrir de nuevo el bottom sheet para añadir
-                _showAddToListSheet(context, provider);
-              }
-            },
-            child: const Text('Crear'),
-          ),
-        ],
-      ),
-    );
+    final success = await provider.addGameFromSearch(_game);
+    if (success && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_game.title} añadido'), backgroundColor: AppColors.accentTeal));
   }
 }

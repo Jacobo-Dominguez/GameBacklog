@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class IGDBService {
-  // ✅ Tus credenciales reales (ya las tienes configuradas correctamente)
   static const String clientId = 'mndb5tj9brc1f5r95johlwccuu63is';
   static const String clientSecret = '6lk5tgmng7ldc087ehedgoj6ynapzh';
   
@@ -12,7 +11,6 @@ class IGDBService {
 
   String _getProxyUrl(String url) {
     if (!kIsWeb) return url;
-    // Usamos un proxy de CORS para desarrollo web
     return 'https://cors-anywhere.herokuapp.com/$url';
   }
 
@@ -55,7 +53,7 @@ class IGDBService {
         'Content-Type': 'text/plain',
         if (kIsWeb) 'X-Requested-With': 'XMLHttpRequest',
       },
-      body: 'search "$query"; fields name, slug, summary, storyline, platforms.name, genres.name, first_release_date, cover.url, screenshots.url, involved_companies.company.name, rating, aggregated_rating, total_rating; limit 20;',
+      body: 'search "$query"; fields name, slug, summary, storyline, platforms.name, genres.name, themes.name, first_release_date, cover.url, screenshots.url, artworks.url, involved_companies.developer, involved_companies.company.name, rating, aggregated_rating, total_rating; limit 20;',
     );
 
     if (response.statusCode == 200) {
@@ -75,7 +73,7 @@ class IGDBService {
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
       },
-      body: 'fields name, slug, summary, storyline, platforms.name, genres.name, first_release_date, cover.url, screenshots.url, involved_companies.company.name, rating, aggregated_rating, total_rating, websites.url, websites.category; where id = $id;',
+      body: 'fields name, slug, summary, storyline, platforms.name, genres.name, themes.name, first_release_date, cover.url, screenshots.url, artworks.url, involved_companies.developer, involved_companies.company.name, rating, aggregated_rating, total_rating, websites.url, websites.category; where id = $id;',
     );
 
     if (response.statusCode == 200) {
