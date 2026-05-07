@@ -569,6 +569,14 @@ Future<bool> addGameFromSearch(Game game) async {
     return await sessionDataSource.getSessionsByGameId(gameId);
   }
 
+  List<GameSession> getSessionsForDay(DateTime day) {
+    return _recentSessions.where((s) => 
+      s.sessionDate.year == day.year && 
+      s.sessionDate.month == day.month && 
+      s.sessionDate.day == day.day
+    ).toList();
+  }
+
   int getTotalMinutesPlayed() {
     return _recentSessions.fold(0, (sum, s) => sum + s.durationMinutes);
   }

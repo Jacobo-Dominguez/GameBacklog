@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/backlog_provider.dart';
 import '../../domain/entities/game_session.dart';
+import '../../domain/entities/game.dart';
+import '../../core/theme/app_theme.dart';
 
 class SessionDialog extends StatefulWidget {
-  final String gameId;
+  final String? gameId;
   final GameSession? existingSession;
   final DateTime? initialDate;
 
   const SessionDialog({
     super.key,
-    required this.gameId,
+    this.gameId,
     this.existingSession,
     this.initialDate,
   });
@@ -24,21 +27,19 @@ class _SessionDialogState extends State<SessionDialog> {
   late TextEditingController _minsController;
   late TextEditingController _descController;
   late DateTime _selectedDate;
+  String? _selectedGameId;
 
   @override
   void initState() {
     super.initState();
-    final hours = widget.existingSession != null 
-        ? (widget.existingSession!.durationMinutes / 60).floor() 
-        : 0;
-    final mins = widget.existingSession != null 
-        ? widget.existingSession!.durationMinutes % 60 
-        : 0;
+    final hours = widget.existingSession != null ? (widget.existingSession!.durationMinutes / 60).floor() : 0;
+    final mins = widget.existingSession != null ? widget.existingSession!.durationMinutes % 60 : 0;
     
     _hoursController = TextEditingController(text: hours > 0 ? hours.toString() : '');
     _minsController = TextEditingController(text: mins > 0 ? mins.toString() : '');
     _descController = TextEditingController(text: widget.existingSession?.description ?? '');
     _selectedDate = widget.existingSession?.sessionDate ?? widget.initialDate ?? DateTime.now();
+    _selectedGameId = widget.gameId ?? widget.existingSession?.gameId;
   }
 
   @override
@@ -51,121 +52,170 @@ class _SessionDialogState extends State<SessionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF1A1A1A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: Text(
-        widget.existingSession == null ? 'Registrar Sesión' : 'Editar Sesión',
-        style: const TextStyle(color: Colors.white),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Fecha: ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                style: const TextStyle(color: Colors.white),
-              ),
-              trailing: const Icon(Icons.calendar_today, color: Colors.blueAccent),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _selectedDate,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null) {
-                  setState(() => _selectedDate = picked);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-            Row(
+    return Consumer<BacklogProvider>(
+      builder: (context, provider, _) {
+        // Obtenemos todos los juegos para el selector (incluyendo completados)
+        final allGames = provider.gamesMap.values.toList();
+
+        return AlertDialog(
+          backgroundColor: AppColors.bgElevated,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.white10)),
+          title: Text(
+            widget.existingSession == null ? 'Registrar Sesión' : 'Editar Sesión',
+            style: GoogleFonts.outfit(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _hoursController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      labelText: 'Horas',
-                      labelStyle: TextStyle(color: Colors.white54),
-                      border: OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
+                // Selector de Juego (si no se pasó gameId)
+                if (widget.gameId == null && widget.existingSession == null) ...[
+                  Text('Juego', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedGameId,
+                        dropdownColor: AppColors.bgElevated,
+                        hint: const Text('Selecciona un juego', style: TextStyle(color: AppColors.textMuted)),
+                        isExpanded: true,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.accentCyan),
+                        items: allGames.map((game) => DropdownMenuItem(
+                          value: game.id,
+                          child: Text(game.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                        )).toList(),
+                        onChanged: (val) => setState(() => _selectedGameId = val),
+                      ),
                     ),
-                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                
+                // Fecha
+                Text('Fecha de la sesión', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _pickDate,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white10)),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_rounded, color: AppColors.accentCyan, size: 18),
+                        const SizedBox(width: 12),
+                        Text('${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}', style: const TextStyle(color: AppColors.textPrimary)),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _minsController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
-                      labelText: 'Minutos',
-                      labelStyle: TextStyle(color: Colors.white54),
-                      border: OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
-                    ),
-                    keyboardType: TextInputType.number,
+                const SizedBox(height: 20),
+                
+                // Duración
+                Text('Duración', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _buildTimeField(_hoursController, 'Horas')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildTimeField(_minsController, 'Minutos')),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Descripción
+                Text('Notas (opcional)', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _descController,
+                  maxLines: 2,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: '¿Qué hiciste hoy?',
+                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    filled: true,
+                    fillColor: AppColors.bgCard,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _descController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Descripción (opcional)',
-                labelStyle: TextStyle(color: Colors.white54),
-                border: OutlineInputBorder(),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white12)),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar', style: TextStyle(color: AppColors.textMuted))),
+            Container(
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), gradient: AppColors.primaryGradient),
+              child: ElevatedButton(
+                onPressed: () => _saveSession(provider),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, foregroundColor: AppColors.bgDark, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: const Text('Guardar', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-              maxLines: 2,
             ),
           ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final h = int.tryParse(_hoursController.text) ?? 0;
-            final m = int.tryParse(_minsController.text) ?? 0;
-            final totalMinutes = (h * 60) + m;
-
-            if (totalMinutes > 0) {
-              final provider = context.read<BacklogProvider>();
-              bool success;
-              if (widget.existingSession == null) {
-                success = await provider.addGameSession(
-                  gameId: widget.gameId,
-                  date: _selectedDate,
-                  durationMinutes: totalMinutes,
-                  description: _descController.text,
-                );
-              } else {
-                success = await provider.updateGameSession(
-                  sessionId: widget.existingSession!.id,
-                  date: _selectedDate,
-                  durationMinutes: totalMinutes,
-                  description: _descController.text,
-                );
-              }
-
-              if (success && context.mounted) {
-                Navigator.pop(context, true);
-              }
-            }
-          },
-          child: const Text('Guardar'),
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  Widget _buildTimeField(TextEditingController controller, String hint) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.center,
+      style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      decoration: InputDecoration(
+        labelText: hint,
+        labelStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+        filled: true,
+        fillColor: AppColors.bgCard,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white10)),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: const ColorScheme.dark(primary: AppColors.accentCyan, onPrimary: AppColors.bgDark, surface: AppColors.bgElevated, onSurface: AppColors.textPrimary)), child: child!),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Future<void> _saveSession(BacklogProvider provider) async {
+    if (_selectedGameId == null) return;
+    
+    final h = int.tryParse(_hoursController.text) ?? 0;
+    final m = int.tryParse(_minsController.text) ?? 0;
+    final totalMinutes = (h * 60) + m;
+
+    if (totalMinutes > 0) {
+      bool success;
+      if (widget.existingSession == null) {
+        success = await provider.addGameSession(
+          gameId: _selectedGameId!,
+          date: _selectedDate,
+          durationMinutes: totalMinutes,
+          description: _descController.text,
+        );
+      } else {
+        success = await provider.updateGameSession(
+          sessionId: widget.existingSession!.id,
+          date: _selectedDate,
+          durationMinutes: totalMinutes,
+          description: _descController.text,
+        );
+      }
+
+      if (success && mounted) Navigator.pop(context, true);
+    }
   }
 }
