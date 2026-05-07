@@ -1,215 +1,35 @@
 import 'package:flutter/material.dart';
-import '../../../core/utils/image_utils.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
-import '../../providers/auth_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../providers/backlog_provider.dart';
 import 'widgets/game_card.dart';
 import 'widgets/edit_game_dialog.dart';
+import '../../../core/theme/app_theme.dart';
 
-class BacklogMobileView extends StatefulWidget {
+class BacklogMobileView extends StatelessWidget {
   const BacklogMobileView({super.key});
 
   @override
-  State<BacklogMobileView> createState() => _BacklogMobileViewState();
-}
-
-class _BacklogMobileViewState extends State<BacklogMobileView> {
-  int _selectedIndex = 0;
-  final _searchController = TextEditingController();
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-    final user = authProvider.currentUser;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_getTitle()),
-        actions: [
-          if (_selectedIndex == 0)
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                // Navegar a búsqueda global
-                context.push('/search');
-              },
-            ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              backgroundImage: ImageUtils.getAvatarProvider(user?.avatarUrl),
-              child: (user?.avatarUrl == null || user!.avatarUrl!.isEmpty)
-                  ? Text(
-                      user?.username[0].toUpperCase() ?? 'U',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
-          ),
-        ],
-      ),
-      drawer: _buildDrawer(context, user),
-      body: _buildBody(),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          if (index == 1) {
-            // Ir a pantalla de búsqueda dedicada en lugar de cambiar tab
-            context.push('/search');
-          } else if (index == 3) {
-            context.go('/profile');
-          } else {
-            setState(() {
-              _selectedIndex = index;
-            });
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.games_outlined),
-            selectedIcon: Icon(Icons.games),
-            label: 'Backlog',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            label: 'Buscar',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Stats',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Perfil',
-          ),
-        ],
-      ),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-              onPressed: () => context.push('/search'),
-              child: const Icon(Icons.add),
-            )
-          : null,
-    );
-  }
-
-  String _getTitle() {
-    switch (_selectedIndex) {
-      case 0:
-        return 'Mi Backlog';
-      case 2:
-        return 'Estadísticas';
-      default:
-        return 'Game Backlog';
-    }
-  }
-
-  Widget _buildBody() {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildBacklogTab();
-      case 2:
-        return _buildStatsTab();
-      default:
-        return _buildBacklogTab();
-    }
-  }
-
-  Widget _buildDrawer(BuildContext context, dynamic user) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          UserAccountsDrawerHeader(
-            accountName: Text(user?.username ?? 'Usuario'),
-            accountEmail: Text(user?.email ?? ''),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                user?.username[0].toUpperCase() ?? 'U',
-                style: const TextStyle(fontSize: 24.0),
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Mi Perfil'),
-            onTap: () {
-              context.pop(); // cerrar drawer
-              context.go('/profile');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.calendar_month),
-            title: const Text('Mi Diario'),
-            onTap: () {
-              context.pop();
-              context.push('/journal');
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red)),
-            onTap: () async {
-              context.pop();
-              await context.read<AuthProvider>().logout();
-              if (context.mounted) context.go('/login');
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBacklogTab() {
     return Consumer<BacklogProvider>(
       builder: (context, backlogProvider, child) {
         if (backlogProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator(color: AppColors.accentCyan));
         }
 
         final entries = backlogProvider.filteredEntries;
 
         return Column(
           children: [
-            // Filtros rápidos
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  _buildFilterChip(backlogProvider, 'all', 'Todos'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(backlogProvider, 'playing', 'Jugando'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(backlogProvider, 'completed', 'Completados'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(backlogProvider, 'pending', 'Pendientes'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(backlogProvider, 'dropped', 'Abandonados'),
-                ],
-              ),
-            ),
+            // Filtros rápidos horizontales
+            _buildMobileFilters(backlogProvider),
+            
+            // Lista de juegos
             Expanded(
               child: entries.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: entries.length,
                       itemBuilder: (context, index) {
                         final entry = entries[index];
@@ -235,11 +55,77 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
     );
   }
 
-  Widget _buildFilterChip(BacklogProvider provider, String value, String label) {
-    return FilterChip(
-      label: Text(label),
-      selected: provider.selectedFilter == value,
-      onSelected: (_) => provider.setFilter(value),
+  Widget _buildMobileFilters(BacklogProvider provider) {
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _buildFilterChip(provider, 'all', 'Todos', Icons.apps_rounded, null),
+          const SizedBox(width: 8),
+          _buildFilterChip(provider, 'playing', 'Jugando', Icons.play_arrow_rounded, AppColors.statusPlaying),
+          const SizedBox(width: 8),
+          _buildFilterChip(provider, 'completed', 'Completado', Icons.check_circle_rounded, AppColors.statusCompleted),
+          const SizedBox(width: 8),
+          _buildFilterChip(provider, 'pending', 'Pendiente', Icons.schedule_rounded, AppColors.statusPending),
+          const SizedBox(width: 8),
+          _buildFilterChip(provider, 'on_hold', 'Pausa', Icons.pause_circle_rounded, AppColors.statusOnHold),
+          const SizedBox(width: 8),
+          _buildFilterChip(provider, 'dropped', 'Drop', Icons.cancel_rounded, AppColors.statusDropped),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(
+    BacklogProvider provider,
+    String value,
+    String label,
+    IconData icon,
+    Color? statusColor,
+  ) {
+    final isSelected = provider.selectedFilter == value;
+    final color = statusColor ?? AppColors.accentCyan;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => provider.setFilter(value),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: isSelected ? color.withOpacity(0.15) : AppColors.bgCard,
+            border: Border.all(
+              color: isSelected ? color.withOpacity(0.4) : const Color(0xFF2A2A4A),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? color : AppColors.textMuted,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? color : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -248,52 +134,16 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.videogame_asset_off, size: 64, color: Colors.grey[400]),
+          Icon(Icons.videogame_asset_off_rounded, size: 64, color: AppColors.textMuted.withOpacity(0.3)),
           const SizedBox(height: 16),
           Text(
-            'No hay juegos',
-            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            'Tu backlog está vacío',
+            style: GoogleFonts.outfit(fontSize: 18, color: AppColors.textMuted),
           ),
         ],
       ),
     );
   }
-  
-  Widget _buildStatsTab() {
-     return Consumer<BacklogProvider>(
-      builder: (context, backlogProvider, child) {
-        final stats = backlogProvider.stats;
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildStatCard('Jugando', stats['playing'] ?? 0, Colors.blue, Icons.play_arrow),
-            _buildStatCard('Completados', stats['completed'] ?? 0, Colors.green, Icons.check_circle),
-            _buildStatCard('Pendientes', stats['pending'] ?? 0, Colors.orange, Icons.schedule),
-            _buildStatCard('En pausa', stats['on_hold'] ?? 0, Colors.amber, Icons.pause),
-            _buildStatCard('Abandonados', stats['dropped'] ?? 0, Colors.red, Icons.cancel),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard(String label, int value, Color color, IconData icon) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          child: Icon(icon, color: color),
-        ),
-        title: Text(label),
-        trailing: Text(
-          value.toString(),
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-
 
   void _showEditGameDialog(BuildContext context, entry, game) {
     showDialog(
@@ -303,19 +153,13 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
         game: game,
         onUpdate: ({status, hoursPlayed, rating, notes}) async {
           final backlogProvider = context.read<BacklogProvider>();
-          final success = await backlogProvider.updateGameEntry(
+          await backlogProvider.updateGameEntry(
             entryId: entry.id,
             status: status,
             hoursPlayed: hoursPlayed,
             rating: rating,
             notes: notes,
           );
-
-          if (success && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Juego actualizado exitosamente')),
-            );
-          }
         },
       ),
     );
@@ -325,26 +169,16 @@ class _BacklogMobileViewState extends State<BacklogMobileView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar juego'),
-        content: const Text('¿Estás seguro de que quieres eliminar este juego del backlog?'),
+        title: const Text('¿Eliminar juego?'),
+        content: const Text('Esta acción no se puede deshacer.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              final backlogProvider = context.read<BacklogProvider>();
-              final success = await backlogProvider.removeGame(entryId);
-
-              if (success && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Juego eliminado')),
-                );
-              }
+              await context.read<BacklogProvider>().removeGame(entryId);
             },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: AppColors.accentRose)),
           ),
         ],
       ),

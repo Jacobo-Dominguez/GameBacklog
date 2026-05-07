@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backlog_provider.dart';
 import '../../../data/datasources/game_remote_datasource.dart';
 import '../../../domain/entities/game_search_result.dart';
 import '../../../data/services/game_search_service.dart';
+import '../../../core/theme/app_theme.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -14,12 +16,23 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen> with SingleTickerProviderStateMixin {
   final _controller = TextEditingController();
   final _service = GameRemoteDataSource();
   final _searchService = GameSearchService();
   List<GameSearchResult> _results = [];
   bool _loading = false;
+
+  late AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
 
   Future<void> _search(String query) async {
     if (query.trim().isEmpty) return;
@@ -29,6 +42,7 @@ class _SearchScreenState extends State<SearchScreen> {
       final results = await _service.searchGames(query.trim());
       if (mounted) {
         setState(() => _results = results);
+        _animController.forward(from: 0);
       }
     } catch (e) {
       if (mounted) {
@@ -55,7 +69,6 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     try {
-      // ✅ Conversión segura a Map para fromIgdbResult
       final releaseDate = gameResult.released != null 
           ? DateTime.tryParse(gameResult.released!)
           : null;
@@ -68,27 +81,31 @@ class _SearchScreenState extends State<SearchScreen> {
         'platforms': gameResult.platforms.map((p) => {'name': p}).toList(),
       };
 
-      // ✅ Agregar cover si existe
       if (gameResult.backgroundImage != null) {
         igdbMap['cover'] = {
           'url': gameResult.backgroundImage!.replaceAll('https:', '')
         };
       }
 
-      // ✅ Agregar fecha de lanzamiento si existe
       if (releaseDate != null) {
         igdbMap['first_release_date'] = releaseDate.millisecondsSinceEpoch ~/ 1000;
       }
 
-      // ✅ Convertir a Game usando el servicio
       final game = _searchService.fromIgdbResult(igdbMap, authProvider.currentUser!.id);
-
-      // ✅ Usar API pública del provider
       final success = await backlogProvider.addGameFromSearch(game);
       
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ ${game.title} agregado al backlog')),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: AppColors.accentTeal, size: 20),
+                const SizedBox(width: 10),
+                Text('${game.title} agregado al backlog'),
+              ],
+            ),
+            backgroundColor: AppColors.bgElevated,
+          ),
         );
         setState(() {
           _results = [];
@@ -96,7 +113,16 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Ya existe en tu backlog')),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.info_outline, color: AppColors.accentAmber, size: 20),
+                const SizedBox(width: 10),
+                const Text('Ya existe en tu backlog'),
+              ],
+            ),
+            backgroundColor: AppColors.bgElevated,
+          ),
         );
       }
     } catch (e) {
@@ -111,32 +137,85 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bgDark,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: 'Buscar juegos...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+          // Search bar
+          Container(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: AppColors.bgCard,
+                border: Border.all(color: const Color(0xFF2A2A4A)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accentCyan.withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              onSubmitted: _search,
-              autofocus: true,
+              child: TextField(
+                controller: _controller,
+                style: GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Buscar juegos en IGDB...',
+                  hintStyle: GoogleFonts.inter(color: AppColors.textMuted),
+                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.accentCyan),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  suffixIcon: _controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, color: AppColors.textMuted, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              _controller.clear();
+                              _results = [];
+                            });
+                          },
+                        )
+                      : null,
+                ),
+                onSubmitted: _search,
+                onChanged: (val) => setState(() {}),
+                autofocus: true,
+              ),
             ),
           ),
+          
+          // Results
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: AppColors.accentCyan,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Buscando...',
+                          style: GoogleFonts.inter(color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  )
                 : _results.isEmpty
                     ? Center(
                         child: Padding(
@@ -145,16 +224,18 @@ class _SearchScreenState extends State<SearchScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                _controller.text.isEmpty ? Icons.search : Icons.search_off,
+                                _controller.text.isEmpty
+                                    ? Icons.search_rounded
+                                    : Icons.search_off_rounded,
                                 size: 64,
-                                color: Colors.grey,
+                                color: AppColors.textMuted.withOpacity(0.5),
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                _controller.text.isEmpty 
+                                _controller.text.isEmpty
                                     ? 'Escribe para buscar juegos en IGDB...'
                                     : 'No se encontraron resultados para "${_controller.text}"',
-                                style: const TextStyle(color: Colors.grey, fontSize: 16),
+                                style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 15),
                                 textAlign: TextAlign.center,
                               ),
                             ],
@@ -162,51 +243,143 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                       )
                     : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _results.length,
                         itemBuilder: (context, index) {
                           final game = _results[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: ListTile(
-                              leading: game.backgroundImage != null
-                                  ? Image.network(
-                                      game.backgroundImage!,
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.videogame_asset, size: 40),
-                                    )
-                                  : const Icon(Icons.videogame_asset, size: 40),
-                              title: Text(game.name),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (game.released != null)
-                                    Text(
-                                      'Lanzado: ${DateTime.tryParse(game.released!)?.year ?? '?'}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  if (game.genres.isNotEmpty)
-                                    Text(
-                                      'Géneros: ${game.genres.take(2).join(', ')}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                ],
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                                onPressed: () => _addGameToBacklog(game),
-                              ),
-                            ),
-                          );
+                          return _buildSearchResultCard(game, index);
                         },
                       ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResultCard(GameSearchResult game, int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 300 + (index * 50)),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 20 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF2A2A4A)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {},
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Cover
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 60,
+                      height: 80,
+                      child: game.backgroundImage != null
+                          ? Image.network(
+                              game.backgroundImage!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    color: AppColors.bgSurface,
+                                    child: const Icon(Icons.videogame_asset_rounded, color: AppColors.textMuted),
+                                  ),
+                            )
+                          : Container(
+                              color: AppColors.bgSurface,
+                              child: const Icon(Icons.videogame_asset_rounded, color: AppColors.textMuted),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          game.name,
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (game.released != null)
+                          Text(
+                            'Lanzado: ${DateTime.tryParse(game.released!)?.year ?? '?'}',
+                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted),
+                          ),
+                        if (game.genres.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Wrap(
+                              spacing: 6,
+                              children: game.genres.take(3).map((genre) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accentPurple.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: AppColors.accentPurple.withOpacity(0.2)),
+                                  ),
+                                  child: Text(
+                                    genre,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.accentPurple.withOpacity(0.8),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Add button
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: AppColors.primaryGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.accentCyan.withOpacity(0.3),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.add_rounded, color: AppColors.bgDark, size: 22),
+                      onPressed: () => _addGameToBacklog(game),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
