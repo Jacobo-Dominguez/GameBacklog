@@ -13,6 +13,7 @@ import '../../../domain/entities/game_list.dart';
 import '../../../domain/entities/community_review.dart'; // ✅ Nuevo
 import '../../providers/community_provider.dart'; // ✅ Nuevo
 import '../../widgets/spoiler_text_widget.dart'; // ✅ Nuevo
+import '../../widgets/session_dialog.dart'; // ✅ Nuevo
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -457,9 +458,26 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   _buildMediaSection(), // Galería de screenshots
               ],
 
-              // ✅ Nueva Sección de Reseña Personal
-              const SizedBox(height: 40),
-              _buildReviewSection(),
+              // ✅ Nueva Sección de Timeline y Reseña
+              Consumer<BacklogProvider>(
+                builder: (context, provider, _) {
+                  final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
+                      ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
+                      : null;
+
+                  if (entry == null) return const SizedBox.shrink();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 32),
+                      _buildTimelineSection(entry),
+                      const SizedBox(height: 40),
+                      _buildReviewSection(entry),
+                    ],
+                  );
+                },
+              ),
               const SizedBox(height: 40),
               _buildCommunityReviewsSection(), // ✅ Nueva Sección
               const SizedBox(height: 20),
@@ -467,15 +485,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       );
   }
 
-  Widget _buildReviewSection() {
-    return Consumer<BacklogProvider>(
-      builder: (context, provider, _) {
-        final entry = provider.backlogEntries.where((e) => e.gameId == widget.gameId).isNotEmpty
-            ? provider.backlogEntries.firstWhere((e) => e.gameId == widget.gameId)
-            : null;
-
-        if (entry == null) return const SizedBox.shrink();
-
+  Widget _buildReviewSection(GameBacklogEntry entry) {
         final hasReview = (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty) || 
                          (entry.notes != null && entry.notes!.isNotEmpty);
 
@@ -540,15 +550,119 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                       ),
                     ),
                     _buildSessionsSection(context, entry),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+                const SizedBox(height: 24),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
+  }
+
+  Widget _buildTimelineSection(GameBacklogEntry? entry) {
+    if (entry == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Línea de Tiempo', 
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            children: [
+              _buildTimelineRow(
+                icon: Icons.play_arrow_rounded,
+                label: 'Empezado el',
+                date: entry.startDate,
+                color: Colors.greenAccent,
+                onTap: () => _selectEntryDate(entry, true),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Divider(color: Colors.white10, indent: 32),
+              ),
+              _buildTimelineRow(
+                icon: Icons.flag_rounded,
+                label: 'Finalizado el',
+                date: entry.endDate,
+                color: Colors.redAccent,
+                onTap: () => _selectEntryDate(entry, false),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineRow({
+    required IconData icon,
+    required String label,
+    required DateTime? date,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                Text(
+                  date != null ? '${date.day}/${date.month}/${date.year}' : 'Pendiente',
+                  style: TextStyle(
+                    color: date != null ? Colors.white : Colors.white24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Icon(Icons.edit_calendar, color: Colors.white24, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectEntryDate(GameBacklogEntry entry, bool isStart) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (isStart ? entry.startDate : entry.endDate) ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (picked != null) {
+      final provider = context.read<BacklogProvider>();
+      if (isStart) {
+        await provider.setStartDate(entry.id, picked);
+      } else {
+        await provider.setEndDate(entry.id, picked);
+      }
+      setState(() {});
+    }
   }
 
   Widget _buildCommunityReviewsSection() {
@@ -798,115 +912,17 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   void _showSessionDialog(BuildContext context, {required String gameId, GameSession? existingSession}) {
-    final hours = existingSession != null ? (existingSession.durationMinutes / 60).floor() : 0;
-    final mins = existingSession != null ? existingSession.durationMinutes % 60 : 0;
-    
-    final hoursController = TextEditingController(text: hours > 0 ? hours.toString() : '');
-    final minsController = TextEditingController(text: mins > 0 ? mins.toString() : '');
-    final descController = TextEditingController(text: existingSession?.description ?? '');
-    DateTime selectedDate = existingSession?.sessionDate ?? DateTime.now();
-
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(existingSession == null ? 'Registrar Sesión' : 'Editar Sesión'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Fecha: ${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => selectedDate = picked);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: hoursController,
-                        decoration: const InputDecoration(
-                          labelText: 'Horas',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: minsController,
-                        decoration: const InputDecoration(
-                          labelText: 'Minutos',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descController,
-                  decoration: const InputDecoration(
-                    labelText: 'Descripción (opcional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 2,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: () async {
-                final h = int.tryParse(hoursController.text) ?? 0;
-                final m = int.tryParse(minsController.text) ?? 0;
-                final totalMinutes = (h * 60) + m;
-
-                if (totalMinutes > 0) {
-                  bool success;
-                  if (existingSession == null) {
-                    success = await context.read<BacklogProvider>().addGameSession(
-                      gameId: gameId,
-                      date: selectedDate,
-                      durationMinutes: totalMinutes,
-                      description: descController.text,
-                    );
-                  } else {
-                    success = await context.read<BacklogProvider>().updateGameSession(
-                      sessionId: existingSession.id,
-                      date: selectedDate,
-                      durationMinutes: totalMinutes,
-                      description: descController.text,
-                    );
-                  }
-
-                  if (success && context.mounted) {
-                    Navigator.pop(context);
-                    setState(() {});
-                  }
-                }
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        ),
+      builder: (context) => SessionDialog(
+        gameId: gameId,
+        existingSession: existingSession,
       ),
-    );
+    ).then((success) {
+      if (success == true && mounted) {
+        setState(() {});
+      }
+    });
   }
 
   void _showReviewDialog(BuildContext context, GameBacklogEntry entry) {

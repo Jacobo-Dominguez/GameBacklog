@@ -18,8 +18,8 @@ class StatsScreen extends StatelessWidget {
           final genres = provider.getGenresDistribution();
           final monthlyHours = provider.getHoursPerMonth();
           final avgTime = provider.getAverageCompletionTime();
-          final totalMinutes = provider.getTotalMinutesPlayed();
-          final totalHours = (totalMinutes / 60).toStringAsFixed(1);
+          final totalHoursVal = provider.getTotalHours();
+          final totalHours = totalHoursVal.toStringAsFixed(1);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -362,7 +362,7 @@ class StatsScreen extends StatelessWidget {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 20),
-          _buildStatRow(Icons.timer, 'Juego más largo', '${longestTime}h'),
+          _buildStatRow(Icons.timer, 'Juego más largo', '${longestTime.toStringAsFixed(1)}h'),
           const Divider(height: 24, color: Colors.white10),
           _buildStatRow(Icons.calendar_today, 'Backlog creado el', 
             '${provider.backlogEntries.isEmpty ? "-" : _formatDate(provider.backlogEntries.map((e) => e.addedDate).reduce((a, b) => a.isBefore(b) ? a : b))}'),

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../providers/backlog_provider.dart';
 import '../../../domain/entities/game_session.dart';
+import '../../widgets/game_selection_dialog.dart';
+import '../../widgets/session_dialog.dart';
 
 class JournalScreen extends StatefulWidget {
   const JournalScreen({super.key});
@@ -78,6 +80,31 @@ class _JournalScreenState extends State<JournalScreen> {
             ],
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showGameSelection(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _showGameSelection(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => GameSelectionDialog(
+        onGameSelected: (game) {
+          _showAddSessionDialog(context, game.id);
+        },
+      ),
+    );
+  }
+
+  void _showAddSessionDialog(BuildContext context, String gameId) {
+    showDialog(
+      context: context,
+      builder: (context) => SessionDialog(
+        gameId: gameId,
+        initialDate: _selectedDay,
       ),
     );
   }

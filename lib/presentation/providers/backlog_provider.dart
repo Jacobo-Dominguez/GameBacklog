@@ -557,6 +557,14 @@ Future<bool> addGameFromSearch(Game game) async {
     }
   }
 
+  Future<void> setStartDate(String entryId, DateTime date) async {
+    await _updateDates(entryId, startDate: date);
+  }
+
+  Future<void> setEndDate(String entryId, DateTime date) async {
+    await _updateDates(entryId, endDate: date);
+  }
+
   Future<List<GameSession>> getSessionsForGame(String gameId) async {
     return await sessionDataSource.getSessionsByGameId(gameId);
   }
@@ -754,14 +762,40 @@ Future<bool> addGameFromSearch(Game game) async {
   }
 
   double getAverageCompletionTime() {
-    final completed = _backlogEntries.where((e) => e.status == 'completed' && e.hoursPlayed > 0).toList();
+    final completed = _backlogEntries.where((e) => e.status == 'completed').toList();
     if (completed.isEmpty) return 0;
-    final totalHours = completed.fold(0, (sum, e) => sum + e.hoursPlayed);
+    
+    double totalHours = 0;
+    for (var entry in completed) {
+      totalHours += _getGameTotalHours(entry);
+    }
     return totalHours / completed.length;
   }
 
-  int getLongestGameTime() {
+  double _getGameTotalHours(GameBacklogEntry entry) {
+    final sessionMinutes = _recentSessions
+        .where((s) => s.gameId == entry.gameId)
+        .fold(0, (sum, s) => sum + s.durationMinutes);
+    
+    final sessionHours = sessionMinutes / 60.0;
+    return (sessionHours > entry.hoursPlayed) ? sessionHours : entry.hoursPlayed.toDouble();
+  }
+
+  double getTotalHours() {
+    double total = 0;
+    for (var entry in _backlogEntries) {
+      total += _getGameTotalHours(entry);
+    }
+    return total;
+  }
+
+  double getLongestGameTime() {
     if (_backlogEntries.isEmpty) return 0;
-    return _backlogEntries.fold(0, (max, e) => e.hoursPlayed > max ? e.hoursPlayed : max);
+    double max = 0;
+    for (var entry in _backlogEntries) {
+      final hours = _getGameTotalHours(entry);
+      if (hours > max) max = hours;
+    }
+    return max;
   }
 }
