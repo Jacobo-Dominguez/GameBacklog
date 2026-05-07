@@ -1,99 +1,117 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/theme/app_theme.dart';
+import 'routes/app_router.dart';
+import 'presentation/providers/auth_provider.dart';
+import 'presentation/providers/backlog_provider.dart';
+import 'presentation/providers/community_provider.dart';
 import 'data/datasources/database_helper.dart';
-import 'data/datasources/user_local_datasource_impl.dart';
-import 'data/datasources/session_local_datasource.dart';
 import 'data/datasources/game_local_datasource_impl.dart';
 import 'data/datasources/game_backlog_local_datasource_impl.dart';
 import 'data/datasources/game_session_local_datasource.dart';
 import 'data/datasources/game_list_local_datasource.dart';
 import 'data/datasources/community_local_datasource.dart';
-import 'presentation/providers/auth_provider.dart';
-import 'presentation/providers/backlog_provider.dart';
-import 'presentation/providers/community_provider.dart';
-import 'routes/app_router.dart';
+import 'data/datasources/user_local_datasource_impl.dart';
+import 'data/datasources/session_local_datasource.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Aviso: No se pudo cargar el archivo .env: $e");
+  }
 
-  // Inicializar base de datos
   final dbHelper = DatabaseHelper.instance;
-  await dbHelper.database; // Asegura que la BD se cree/abra
-  await dbHelper.seedCommunityData(); // <- INYECTA DATOS MOCK
+  await dbHelper.database;
 
-  // Crear DataSources
-  final userDataSource = UserLocalDataSourceImpl(dbHelper);
-  final authSessionDataSource = SessionLocalDataSource();
+  // Inicializar todos los DataSources con las clases correctas
   final gameDataSource = GameLocalDataSourceImpl(dbHelper);
   final backlogDataSource = GameBacklogLocalDataSourceImpl(dbHelper);
   final gameSessionDataSource = GameSessionLocalDataSource(dbHelper);
-  final gameListDataSource = GameListLocalDataSource(dbHelper);
+  final listDataSource = GameListLocalDataSource(dbHelper);
   final communityDataSource = CommunityLocalDataSource(dbHelper);
-
-  // Crear AuthProvider
-  final authProvider = AuthProvider(
-    userDataSource: userDataSource,
-    sessionDataSource: authSessionDataSource,
-  );
-
-  // Inicializar autenticación
-  await authProvider.initializeAuth();
+  final userDataSource = UserLocalDataSourceImpl(dbHelper);
+  final sessionDataSource = SessionLocalDataSource(); // No toma parámetros
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: authProvider),
-        // BacklogProvider se crea dinámicamente cuando hay un usuario autenticado
-        ChangeNotifierProxyProvider<AuthProvider, BacklogProvider?>(
-          create: (_) => null,
-          update: (context, authProvider, previous) {
-            if (authProvider.currentUser != null) {
-              return BacklogProvider(
-                userId: authProvider.currentUser!.id,
-                gameDataSource: gameDataSource,
-                backlogDataSource: backlogDataSource,
-                sessionDataSource: gameSessionDataSource,
-                listDataSource: gameListDataSource,
-              );
-            }
-            return null;
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(
+            userDataSource: userDataSource,
+            sessionDataSource: sessionDataSource,
+          )..initializeAuth(),
+        ),
+        
+        ChangeNotifierProxyProvider<AuthProvider, BacklogProvider>(
+          create: (context) => BacklogProvider(
+            userId: '', 
+            gameDataSource: gameDataSource,
+            backlogDataSource: backlogDataSource,
+            sessionDataSource: gameSessionDataSource,
+            listDataSource: listDataSource,
+          ),
+          update: (_, auth, previous) {
+            final user = auth.currentUser;
+            return BacklogProvider(
+              userId: user?.id ?? '',
+              gameDataSource: gameDataSource,
+              backlogDataSource: backlogDataSource,
+              sessionDataSource: gameSessionDataSource,
+              listDataSource: listDataSource,
+            );
           },
         ),
-        ChangeNotifierProxyProvider<AuthProvider, CommunityProvider?>(
-          create: (_) => null,
-          update: (context, auth, previous) {
-            if (auth.currentUser != null) {
-              return CommunityProvider(
-                dataSource: communityDataSource,
-                currentUserId: auth.currentUser!.id,
-              );
-            }
-            return null;
+
+        ChangeNotifierProxyProvider<AuthProvider, CommunityProvider>(
+          create: (context) => CommunityProvider(
+            dataSource: communityDataSource,
+            currentUserId: '',
+          ),
+          update: (_, auth, previous) {
+            final user = auth.currentUser;
+            return CommunityProvider(
+              dataSource: communityDataSource,
+              currentUserId: user?.id ?? '',
+            );
           },
+        ),
+        
+        ProxyProvider<AuthProvider, AppRouter>(
+          update: (_, auth, __) => AppRouter(auth),
         ),
       ],
-      child: MyApp(authProvider: authProvider),
+      child: const GameBacklogApp(),
     ),
   );
 }
 
-class MyApp extends StatelessWidget {
-  final AuthProvider authProvider;
-
-  const MyApp({super.key, required this.authProvider});
+class GameBacklogApp extends StatelessWidget {
+  const GameBacklogApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final appRouter = AppRouter(authProvider);
+    final appRouter = Provider.of<AppRouter>(context, listen: false);
 
     return MaterialApp.router(
-      title: 'Game Backlog',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      title: 'GameBacklog',
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark,
       routerConfig: appRouter.router,
+      builder: (context, child) {
+        return ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(
+            physics: const BouncingScrollPhysics(),
+            scrollbars: false,
+          ),
+          child: child!,
+        );
+      },
     );
   }
 }
