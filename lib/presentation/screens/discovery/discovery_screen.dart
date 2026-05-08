@@ -184,71 +184,75 @@ class DiscoveryScreen extends StatelessWidget {
               const SizedBox(height: 16),
               
               // Content: Game and Review
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Cover
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: SizedBox(
-                      width: 56,
-                      height: 78,
-                      child: review.gameCoverUrl != null && review.gameCoverUrl!.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: review.gameCoverUrl!,
-                              fit: BoxFit.cover,
-                            )
-                          : Container(color: AppColors.bgSurface),
+              InkWell(
+                onTap: () => context.push('/game/${review.gameId}'),
+                borderRadius: BorderRadius.circular(10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Cover
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: 56,
+                        height: 78,
+                        child: review.gameCoverUrl != null && review.gameCoverUrl!.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: review.gameCoverUrl!,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(color: AppColors.bgSurface),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          review.gameTitle,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.accentCyan,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (review.reviewTitle != null && review.reviewTitle!.isNotEmpty)
+                    const SizedBox(width: 14),
+                    
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            review.reviewTitle!,
-                            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
-                          ),
-                        const SizedBox(height: 4),
-                        if (review.isSpoiler) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentAmber.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.warning_rounded, color: AppColors.accentAmber, size: 12),
-                                const SizedBox(width: 4),
-                                Text('SPOILER', style: TextStyle(color: AppColors.accentAmber, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ],
+                            review.gameTitle,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.accentCyan,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          SpoilerTextWidget(text: review.notes),
-                        ] else
-                          Text(
-                            review.notes,
-                            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
-                          ),
-                      ],
+                          if (review.reviewTitle != null && review.reviewTitle!.isNotEmpty)
+                            Text(
+                              review.reviewTitle!,
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
+                            ),
+                          const SizedBox(height: 4),
+                          if (review.isSpoiler) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.accentAmber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.warning_rounded, color: AppColors.accentAmber, size: 12),
+                                  const SizedBox(width: 4),
+                                  Text('SPOILER', style: TextStyle(color: AppColors.accentAmber, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SpoilerTextWidget(text: review.notes),
+                          ] else
+                            Text(
+                              review.notes,
+                              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               
               const SizedBox(height: 12),

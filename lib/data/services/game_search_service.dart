@@ -34,8 +34,11 @@ class GameSearchService {
       genre = rawgResult.genres.join(', ');
     }
 
+    // Usamos un ID consistente basado en el remoteId para que la comunidad funcione
+    final String consistentId = 'rawg_$remoteId';
+
     return Game(
-      id: const Uuid().v4(),
+      id: consistentId,
       title: title,
       coverUrl: coverUrl,
       description: null, // No disponible en búsquedas de RAWG
@@ -80,12 +83,19 @@ class GameSearchService {
         releaseDate = DateTime.fromMillisecondsSinceEpoch((igdbResult['first_release_date'] as int) * 1000);
     }
 
+    final int? remoteId = igdbResult['id'] as int?;
+    
+    // Usamos un ID consistente basado en el remoteId (IGDB ID) 
+    // para que todos los usuarios compartan el mismo ID de juego
+    // y así funcionen las reseñas de la comunidad.
+    final String consistentId = remoteId != null ? 'igdb_$remoteId' : const Uuid().v4();
+
     return Game(
-      id: const Uuid().v4(),
+      id: consistentId,
       title: igdbResult['name'] as String,
       coverUrl: coverUrl,
       description: description,
-      remoteId: igdbResult['id'] as int?,
+      remoteId: remoteId,
       releaseDate: releaseDate,
       platform: platforms.isNotEmpty ? platforms.join(', ') : null,
       genre: genres.isNotEmpty ? genres.join(', ') : null,

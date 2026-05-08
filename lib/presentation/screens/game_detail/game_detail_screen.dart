@@ -4,17 +4,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../domain/entities/game.dart';
-import '../../../data/datasources/game_remote_datasource.dart';
-import '../../providers/backlog_provider.dart';
-import '../../providers/community_provider.dart';
-import '../backlog/widgets/edit_game_dialog.dart';
-import '../backlog/widgets/review_dialog.dart';
-import '../../widgets/session_dialog.dart';
-import '../../../domain/entities/game_backlog_entry.dart';
-import '../../../domain/entities/game_session.dart';
-import '../../../domain/entities/community_review.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:game_backlog/domain/entities/game.dart';
+import 'package:game_backlog/data/datasources/game_remote_datasource.dart';
+import 'package:game_backlog/presentation/providers/backlog_provider.dart';
+import 'package:game_backlog/presentation/providers/community_provider.dart';
+import 'package:game_backlog/presentation/screens/backlog/widgets/edit_game_dialog.dart';
+import 'package:game_backlog/presentation/screens/backlog/widgets/review_dialog.dart';
+import 'package:game_backlog/presentation/widgets/session_dialog.dart';
+import 'package:game_backlog/domain/entities/game_backlog_entry.dart';
+import 'package:game_backlog/domain/entities/game_session.dart';
+import 'package:game_backlog/domain/entities/community_review.dart';
+import 'package:game_backlog/domain/entities/user_review.dart';
+import 'package:game_backlog/core/theme/app_theme.dart';
 
 class GameDetailScreen extends StatefulWidget {
   final String gameId;
@@ -84,15 +85,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       if (mounted && details != null) {
         setState(() {
           _apiDetails = details;
-          
-          // Extraer Plataformas
           if (details!['platforms'] != null) {
             _platforms = (details['platforms'] as List).map((p) => p['name'] as String).toList();
-          } else if (_game.platform != null) {
-            _platforms = _game.platform!.split(', ');
           }
-
-          // Extraer Géneros y Temas (Combinados para mayor riqueza)
           final List<String> allTags = [];
           if (details['genres'] != null) {
             allTags.addAll((details['genres'] as List).map((g) => g['name'] as String));
@@ -102,15 +97,10 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           }
           _genres = allTags.toSet().toList();
 
-          // Extraer desarrollador
           if (details['involved_companies'] != null) {
             final companies = details['involved_companies'] as List;
             final dev = companies.firstWhere((c) => c['developer'] == true, orElse: () => null);
-            if (dev != null) {
-              _developer = dev['company']['name'];
-            } else if (companies.isNotEmpty) {
-              _developer = companies.first['company']['name'];
-            }
+            if (dev != null) _developer = dev['company']['name'];
           }
         });
       }
@@ -495,7 +485,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           children: [
             _buildTimelineSection(entry),
             const SizedBox(height: 32),
-            _buildReviewSection(entry),
+            _buildMultiReviewSection(context, provider),
             const SizedBox(height: 32),
             _buildSessionsSection(context, entry, provider),
           ],
@@ -543,31 +533,67 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildReviewSection(GameBacklogEntry entry) {
-    final hasReview = (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty) || (entry.notes != null && entry.notes!.isNotEmpty);
+  Widget _buildMultiReviewSection(BuildContext context, BacklogProvider provider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Tu Reseña', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            TextButton.icon(onPressed: () => _showReviewDialog(context, entry), icon: Icon(hasReview ? Icons.edit : Icons.add_comment, size: 16), label: Text(hasReview ? 'Editar' : 'Escribir')),
+            Text('Tus Reseñas', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            TextButton.icon(
+              onPressed: () => _showAddReviewDialog(context, provider), 
+              icon: const Icon(Icons.add_comment_rounded, size: 16), 
+              label: const Text('Añadir Reseña')
+            ),
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (entry.reviewTitle != null) Text(entry.reviewTitle!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-              if (entry.isSpoiler) Container(margin: const EdgeInsets.symmetric(vertical: 8), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: AppColors.accentRose.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: const Text('SPOILERS', style: TextStyle(color: AppColors.accentRose, fontSize: 10, fontWeight: FontWeight.bold))),
-              Text(entry.notes ?? 'No has escrito ninguna nota todavía.', style: TextStyle(color: entry.notes != null ? AppColors.textSecondary : AppColors.textMuted, fontStyle: entry.notes != null ? null : FontStyle.italic)),
-            ],
-          ),
+        FutureBuilder<List<UserReview>>(
+          future: provider.getUserReviewsForGame(widget.gameId),
+          builder: (context, snapshot) {
+            final reviews = snapshot.data ?? [];
+            if (reviews.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16)),
+                child: const Text('No has escrito ninguna reseña todavía.', style: TextStyle(color: AppColors.textMuted, fontStyle: FontStyle.italic)),
+              );
+            }
+
+            return Column(
+              children: reviews.map((review) => InkWell(
+                onTap: () => _showAddReviewDialog(context, provider, existing: review),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.bgCard, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (review.title != null) Expanded(child: Text(review.title!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.accentRose, size: 18),
+                            onPressed: () => _confirmDeleteReview(context, provider, review.id),
+                          ),
+                        ],
+                      ),
+                      if (review.isSpoiler) Container(margin: const EdgeInsets.symmetric(vertical: 8), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: AppColors.accentRose.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: const Text('SPOILERS', style: TextStyle(color: AppColors.accentRose, fontSize: 10, fontWeight: FontWeight.bold))),
+                      Text(review.content ?? '', style: const TextStyle(color: AppColors.textSecondary)),
+                      const SizedBox(height: 8),
+                      Text('${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}', style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                    ],
+                  ),
+                ),
+              )).toList(),
+            );
+          },
         ),
       ],
     );
@@ -660,7 +686,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                           const SizedBox(width: 8),
                           Text(review.username, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
                           const Spacer(),
-                          Row(children: [const Icon(Icons.star_rounded, color: AppColors.accentAmber, size: 14), const SizedBox(width: 4), Text('${review.rating}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13))]),
+                          if (review.rating != null && review.rating! > 0)
+                            Row(children: [const Icon(Icons.star_rounded, color: AppColors.accentAmber, size: 14), const SizedBox(width: 4), Text('${review.rating}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13))]),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -690,21 +717,68 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Añadir a colección', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Añadir a colección', style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                TextButton.icon(
+                  onPressed: () => _showCreateListDialog(context, provider), 
+                  icon: const Icon(Icons.add_box_rounded, size: 18), 
+                  label: const Text('Nueva Colección')
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
-            ...provider.gameLists.map((list) => ListTile(
-              leading: const Icon(Icons.collections_bookmark_rounded, color: AppColors.accentCyan),
-              title: Text(list.name, style: const TextStyle(color: AppColors.textPrimary)),
-              onTap: () async {
-                final ok = await provider.addGameToList(list.id, widget.gameId);
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Añadido a ${list.name}' : 'Ya está en esta lista')));
-                }
-              },
-            )),
+            Expanded(
+              child: ListView(
+                shrinkWrap: true,
+                children: provider.gameLists.map((list) => ListTile(
+                  leading: const Icon(Icons.collections_bookmark_rounded, color: AppColors.accentCyan),
+                  title: Text(list.name, style: const TextStyle(color: AppColors.textPrimary)),
+                  onTap: () async {
+                    final ok = await provider.addGameToList(list.id, widget.gameId);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Añadido a ${list.name}' : 'Ya está en esta lista')));
+                    }
+                  },
+                )).toList(),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showCreateListDialog(BuildContext context, BacklogProvider provider) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        title: const Text('Nueva Colección', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Nombre de la colección',
+            hintStyle: TextStyle(color: Colors.white24),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan)),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () async {
+              if (controller.text.isNotEmpty) {
+                await provider.createGameList(name: controller.text);
+                if (context.mounted) Navigator.pop(context);
+              }
+            }, 
+            child: const Text('Crear', style: TextStyle(color: AppColors.accentCyan))
+          ),
+        ],
       ),
     );
   }
@@ -726,14 +800,60 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     showDialog(context: context, builder: (context) => EditGameDialog(entry: entry, game: _game, onUpdate: ({status, hoursPlayed, rating, notes}) async => await provider.updateGameEntry(entryId: entry.id, status: status, hoursPlayed: hoursPlayed, rating: rating, notes: notes)));
   }
 
-  void _showReviewDialog(BuildContext context, GameBacklogEntry entry) {
+  void _showAddReviewDialog(BuildContext context, BacklogProvider provider, {UserReview? existing}) {
     showDialog(
       context: context, 
       builder: (context) => ReviewDialog(
-        entryId: entry.id,
-        initialTitle: entry.reviewTitle,
-        initialContent: entry.notes,
-        initialIsSpoiler: entry.isSpoiler,
+        entryId: widget.gameId,
+        reviewId: existing?.id,
+        initialTitle: existing?.title,
+        initialContent: existing?.content,
+        initialIsSpoiler: existing?.isSpoiler ?? false,
+        onReviewSubmit: (title, content, isSpoiler) async {
+          if (existing == null) {
+            await provider.addUserReview(
+              gameId: widget.gameId,
+              title: title,
+              content: content,
+              isSpoiler: isSpoiler,
+            );
+          } else {
+            await provider.updateUserReview(
+              reviewId: existing.id,
+              title: title,
+              content: content,
+              isSpoiler: isSpoiler,
+            );
+          }
+          setState(() {}); 
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(existing == null ? 'Reseña añadida' : 'Reseña actualizada'), backgroundColor: AppColors.accentTeal),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _confirmDeleteReview(BuildContext context, BacklogProvider provider, String reviewId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        title: const Text('¿Eliminar reseña?', style: TextStyle(color: Colors.white)),
+        content: const Text('Esta acción no se puede deshacer.', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () async {
+              await provider.deleteUserReview(reviewId);
+              if (context.mounted) Navigator.pop(context);
+              setState(() {});
+            }, 
+            child: const Text('Eliminar', style: TextStyle(color: AppColors.accentRose))
+          ),
+        ],
       ),
     );
   }

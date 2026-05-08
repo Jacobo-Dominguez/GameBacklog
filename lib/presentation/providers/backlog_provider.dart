@@ -16,6 +16,9 @@ import '../../data/models/game_session_model.dart';
 import '../../domain/entities/game_list.dart';
 import '../../data/models/game_list_model.dart';
 import '../../data/models/game_list_item_model.dart';
+import '../../data/datasources/review_local_datasource.dart';
+import '../../domain/entities/user_review.dart';
+import '../../data/models/user_review_model.dart';
 
 class BacklogProvider with ChangeNotifier {
   final String userId;
@@ -23,6 +26,7 @@ class BacklogProvider with ChangeNotifier {
   final GameBacklogLocalDataSourceImpl backlogDataSource;
   final GameSessionLocalDataSource sessionDataSource;
   final GameListLocalDataSource listDataSource;
+  final ReviewLocalDataSource reviewDataSource;
 
   List<GameBacklogEntry> _backlogEntries = [];
   Map<String, Game> _gamesMap = {};
@@ -39,6 +43,7 @@ class BacklogProvider with ChangeNotifier {
     required this.backlogDataSource,
     required this.sessionDataSource,
     required this.listDataSource,
+    required this.reviewDataSource,
   }) {
     loadBacklog();
   }
@@ -264,37 +269,91 @@ Future<bool> addGameFromSearch(Game game) async {
     }
   }
 
-  Future<bool> deleteReview(String entryId) async {
+  // ─── Reseñas de Usuario (Múltiples) ───
+
+  Future<bool> addUserReview({
+    required String gameId,
+    String? title,
+    String? content,
+    int? rating,
+    bool isSpoiler = false,
+  }) async {
     try {
-      final entry = _backlogEntries.firstWhere((e) => e.id == entryId);
-      
-      final updatedEntry = GameBacklogModel(
-        id: entry.id,
-        userId: entry.userId,
-        gameId: entry.gameId,
-        status: entry.status,
-        hoursPlayed: entry.hoursPlayed,
-        rating: null,
-        notes: null,
-        isFavorite: entry.isFavorite,
-        reviewTitle: null,
-        isSpoiler: false,
-        addedDate: entry.addedDate,
-        completedDate: entry.completedDate,
-        lastUpdated: DateTime.now(),
+      final review = UserReviewModel(
+        id: const Uuid().v4(),
+        userId: userId,
+        gameId: gameId,
+        title: title,
+        content: content,
+        rating: rating,
+        isSpoiler: isSpoiler,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
-      await backlogDataSource.updateBacklogEntry(updatedEntry);
-
-      final index = _backlogEntries.indexWhere((e) => e.id == entryId);
-      if (index != -1) {
-        _backlogEntries[index] = updatedEntry;
-      }
-
+      await reviewDataSource.insertReview(review);
       notifyListeners();
       return true;
     } catch (e) {
-      debugPrint('Error deleting review: $e');
+      debugPrint('Error adding user review: $e');
+      return false;
+    }
+  }
+
+  Future<List<UserReview>> getUserReviewsForGame(String gameId) async {
+    return await reviewDataSource.getReviewsByGameId(gameId, userId);
+  }
+
+  Future<List<UserReview>> getAllUserReviews() async {
+    return await reviewDataSource.getAllReviewsByUserId(userId);
+  }
+
+  Future<bool> deleteUserReview(String reviewId) async {
+    try {
+      await reviewDataSource.deleteReview(reviewId);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting user review: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateUserReview({
+    required String reviewId,
+    String? title,
+    String? content,
+    bool isSpoiler = false,
+  }) async {
+    try {
+      // Fetch existing to preserve non-changing fields like gameId, createdAt
+      // Or just assume we have them. 
+      // For simplicity, let's just use the update method.
+      // We need a full model to update in sqflite usually if we use the toJson.
+      // But ReviewLocalDataSource has an updateReview that takes a model.
+      
+      final db = await DatabaseHelper.instance.database;
+      final maps = await db.query('user_reviews', where: 'id = ?', whereArgs: [reviewId]);
+      if (maps.isEmpty) return false;
+      
+      final existing = UserReviewModel.fromJson(maps.first);
+      final updated = UserReviewModel(
+        id: existing.id,
+        userId: existing.userId,
+        gameId: existing.gameId,
+        title: title,
+        content: content,
+        rating: existing.rating,
+        isSpoiler: isSpoiler,
+        createdAt: existing.createdAt,
+        updatedAt: DateTime.now(),
+      );
+
+      await reviewDataSource.updateReview(updated);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error updating user review: $e');
       return false;
     }
   }
@@ -579,6 +638,21 @@ Future<bool> addGameFromSearch(Game game) async {
 
   int getTotalMinutesPlayed() {
     return _recentSessions.fold(0, (sum, s) => sum + s.durationMinutes);
+  }
+
+  Map<String, dynamic> getMonthlyActivityStats(DateTime month) {
+    final monthSessions = _recentSessions.where((s) => 
+      s.sessionDate.year == month.year && 
+      s.sessionDate.month == month.month
+    ).toList();
+
+    final totalMinutes = monthSessions.fold(0, (sum, s) => sum + s.durationMinutes);
+    
+    return {
+      'count': monthSessions.length,
+      'hours': (totalMinutes / 60).toStringAsFixed(1),
+      'minutes': totalMinutes,
+    };
   }
 
   // ─── Listas / Colecciones ───

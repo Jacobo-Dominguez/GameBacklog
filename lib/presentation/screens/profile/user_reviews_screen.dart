@@ -1,112 +1,193 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import '../../providers/backlog_provider.dart';
-import '../../widgets/spoiler_text_widget.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:game_backlog/presentation/providers/backlog_provider.dart';
+import 'package:game_backlog/domain/entities/user_review.dart';
+import 'package:game_backlog/core/theme/app_theme.dart';
 
-class UserReviewsScreen extends StatelessWidget {
+class UserReviewsScreen extends StatefulWidget {
   const UserReviewsScreen({super.key});
+
+  @override
+  State<UserReviewsScreen> createState() => _UserReviewsScreenState();
+}
+
+class _UserReviewsScreenState extends State<UserReviewsScreen> {
+  late Future<List<UserReview>> _reviewsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReviews();
+  }
+
+  void _loadReviews() {
+    _reviewsFuture = context.read<BacklogProvider>().getAllUserReviews();
+  }
 
   @override
   Widget build(BuildContext context) {
     final backlogProvider = context.watch<BacklogProvider>();
-    final entries = backlogProvider.backlogEntries.where((e) {
-      return (e.reviewTitle != null && e.reviewTitle!.isNotEmpty) || 
-             (e.notes != null && e.notes!.isNotEmpty) ||
-             (e.rating != null);
-    }).toList();
 
     return Scaffold(
+      backgroundColor: AppColors.bgDark,
       appBar: AppBar(
-        title: const Text('Mis Reseñas'),
+        title: Text('Mis Reseñas', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: entries.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.rate_review_outlined, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Aún no has escrito reseñas',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: entries.length,
-              itemBuilder: (context, index) {
-                final entry = entries[index];
-                final game = backlogProvider.gamesMap[entry.gameId];
-                
-                if (game == null) return const SizedBox.shrink();
+      body: FutureBuilder<List<UserReview>>(
+        future: _reviewsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: game.coverUrl != null
-                          ? Image.network(game.coverUrl!, width: 50, height: 75, fit: BoxFit.cover)
-                          : Container(width: 50, height: 75, color: Colors.grey),
-                    ),
-                    title: Text(
-                      game.title,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (entry.rating != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+          }
+
+          final reviews = snapshot.data ?? [];
+          
+          if (reviews.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          // Agrupar reseñas por gameId
+          final groupedReviews = <String, List<UserReview>>{};
+          for (final review in reviews) {
+            groupedReviews.putIfAbsent(review.gameId, () => []).add(review);
+          }
+
+          final gameIds = groupedReviews.keys.toList();
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(24),
+            itemCount: gameIds.length,
+            itemBuilder: (context, index) {
+              final gameId = gameIds[index];
+              final gameReviews = groupedReviews[gameId]!;
+              final game = backlogProvider.gamesMap[gameId];
+
+              if (game == null) return const SizedBox.shrink();
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Cabecera del Juego
+                    InkWell(
+                      onTap: () => context.push('/game/$gameId'),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              width: 60,
+                              height: 80,
+                              child: game.coverUrl != null
+                                  ? Image.network(game.coverUrl!, fit: BoxFit.cover)
+                                  : Container(color: AppColors.bgElevated, child: const Icon(Icons.videogame_asset)),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.star, size: 16, color: Colors.amber),
-                                Text(' ${entry.rating}/10'),
+                                Text(
+                                  game.title,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  '${gameReviews.length} ${gameReviews.length == 1 ? 'reseña' : 'reseñas'}',
+                                  style: GoogleFonts.inter(color: AppColors.accentCyan, fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
                               ],
                             ),
                           ),
-                        if (entry.reviewTitle != null && entry.reviewTitle!.isNotEmpty)
-                          Text(
-                            entry.reviewTitle!,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        if (entry.notes != null && entry.notes!.isNotEmpty) ...[
-                          if (entry.isSpoiler) ...[
-                            const SizedBox(height: 4),
-                            const Row(
-                              children: [
-                                Icon(Icons.warning, color: Colors.orange, size: 14),
-                                SizedBox(width: 4),
-                                Text('SPOILER', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            SpoilerTextWidget(
-                              text: entry.notes!,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ] else
-                            Text(
-                              entry.notes!,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
+                          const Icon(Icons.chevron_right, color: AppColors.textMuted),
                         ],
-                      ],
+                      ),
                     ),
-                    onTap: () => context.push('/game/${game.id}'),
-                  ),
-                );
-              },
+                    const SizedBox(height: 16),
+                    // Lista de Reseñas para este juego
+                    ...gameReviews.map((review) => _buildReviewCard(review)).toList(),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReviewCard(UserReview review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12, left: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (review.title != null && review.title!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                review.title!,
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
+              ),
             ),
+          if (review.isSpoiler)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: AppColors.accentRose.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+              child: const Text('SPOILER', style: TextStyle(color: AppColors.accentRose, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+          Text(
+            review.content ?? '',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Escrito el ${review.createdAt.day}/${review.createdAt.month}/${review.createdAt.year}',
+            style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.rate_review_outlined, size: 80, color: AppColors.textMuted.withOpacity(0.2)),
+          const SizedBox(height: 24),
+          Text(
+            'Aún no has escrito ninguna reseña',
+            style: GoogleFonts.outfit(color: AppColors.textMuted, fontSize: 18),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tus opiniones aparecerán aquí',
+            style: GoogleFonts.inter(color: AppColors.textMuted.withOpacity(0.5)),
+          ),
+        ],
+      ),
     );
   }
 }
