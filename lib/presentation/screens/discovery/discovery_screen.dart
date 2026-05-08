@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../providers/community_provider.dart';
 import '../../../domain/entities/community_review.dart';
 import '../../widgets/spoiler_text_widget.dart';
@@ -29,24 +30,15 @@ class DiscoveryScreen extends StatelessWidget {
             color: AppColors.accentCyan,
             backgroundColor: AppColors.bgCard,
             onRefresh: () => provider.loadDiscoveryFeed(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(20),
+            child: MasonryGridView.count(
+              padding: const EdgeInsets.all(16),
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
               itemCount: provider.feed.length + (provider.hasMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
                 if (index == provider.feed.length) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: provider.isLoadingMore
-                          ? const CircularProgressIndicator(color: AppColors.accentCyan)
-                          : OutlinedButton.icon(
-                              onPressed: () => provider.loadMoreDiscoveryFeed(),
-                              icon: const Icon(Icons.expand_more_rounded),
-                              label: const Text('Cargar más reseñas'),
-                            ),
-                    ),
-                  );
+                  return _buildLoadMoreButton(provider);
                 }
                 final review = provider.feed[index];
                 return _buildReviewCard(context, review, provider, index);
@@ -54,6 +46,24 @@ class DiscoveryScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreButton(CommunityProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: provider.isLoadingMore
+            ? const CircularProgressIndicator(color: AppColors.accentCyan)
+            : OutlinedButton(
+                onPressed: () => provider.loadMoreDiscoveryFeed(),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF2A2A4A)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Cargar más'),
+              ),
       ),
     );
   }
@@ -113,179 +123,153 @@ class DiscoveryScreen extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFF2A2A4A)),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header: User and Date
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User and Info
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: AppColors.accentGradient,
-                    ),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.transparent,
-                      backgroundImage: review.userAvatarUrl != null
-                          ? NetworkImage(review.userAvatarUrl!)
-                          : null,
-                      child: review.userAvatarUrl == null
-                          ? Text(
-                              review.username.substring(0, 1).toUpperCase(),
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                            )
-                          : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: AppColors.accentCyan.withOpacity(0.2),
+                        backgroundImage: review.userAvatarUrl != null
+                            ? NetworkImage(review.userAvatarUrl!)
+                            : null,
+                        child: review.userAvatarUrl == null
+                            ? Text(
+                                review.username.substring(0, 1).toUpperCase(),
+                                style: const TextStyle(color: AppColors.accentCyan, fontWeight: FontWeight.bold, fontSize: 10),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
                           review.username,
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          _formatDate(review.addedDate),
-                          style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12),
+                      ),
+                      if (review.rating != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, color: AppColors.accentAmber, size: 14),
+                            Text(
+                              '${review.rating}',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.accentAmber, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // Game Info (Clickable)
+                  InkWell(
+                    onTap: () => context.push('/game/${review.gameId}'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox(
+                            width: 30,
+                            height: 40,
+                            child: review.gameCoverUrl != null && review.gameCoverUrl!.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: review.gameCoverUrl!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Container(color: AppColors.bgSurface),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            review.gameTitle,
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.accentCyan,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  if (review.rating != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentAmber.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.accentAmber.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star_rounded, color: AppColors.accentAmber, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${review.rating}',
-                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AppColors.accentAmber, fontSize: 14),
-                          ),
-                        ],
+                  const SizedBox(height: 10),
+
+                  if (review.reviewTitle != null && review.reviewTitle!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        review.reviewTitle!,
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+
+                  // Review content with "Read more"
+                  _ExpandableText(
+                    text: review.notes,
+                    isSpoiler: review.isSpoiler,
+                    maxLines: 4,
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-              
-              // Content: Game and Review
-              InkWell(
-                onTap: () => context.push('/game/${review.gameId}'),
-                borderRadius: BorderRadius.circular(10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Cover
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: SizedBox(
-                        width: 56,
-                        height: 78,
-                        child: review.gameCoverUrl != null && review.gameCoverUrl!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: review.gameCoverUrl!,
-                                fit: BoxFit.cover,
-                              )
-                            : Container(color: AppColors.bgSurface),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            review.gameTitle,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.accentCyan,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          if (review.reviewTitle != null && review.reviewTitle!.isNotEmpty)
-                            Text(
-                              review.reviewTitle!,
-                              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, color: AppColors.textPrimary),
-                            ),
-                          const SizedBox(height: 4),
-                          if (review.isSpoiler) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.accentAmber.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.warning_rounded, color: AppColors.accentAmber, size: 12),
-                                  const SizedBox(width: 4),
-                                  Text('SPOILER', style: TextStyle(color: AppColors.accentAmber, fontSize: 10, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            SpoilerTextWidget(text: review.notes),
-                          ] else
-                            Text(
-                              review.notes,
-                              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+            ),
+            
+            // Footer: Like button and Date
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Color(0xFF2A2A4A))),
               ),
-              
-              const SizedBox(height: 12),
-              Divider(color: const Color(0xFF2A2A4A), height: 1),
-              const SizedBox(height: 10),
-              
-              // Footer: Like button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${review.likesCount}',
-                    style: GoogleFonts.inter(
-                      color: review.isLikedByMe ? AppColors.accentRose : AppColors.textMuted,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
+                    _formatDate(review.addedDate),
+                    style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 10),
                   ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: Icon(
-                      review.isLikedByMe ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                      color: review.isLikedByMe ? AppColors.accentRose : AppColors.textMuted,
-                      size: 20,
-                    ),
-                    onPressed: () => provider.toggleLike(review.reviewId),
-                    constraints: const BoxConstraints(),
-                    padding: EdgeInsets.zero,
+                  Row(
+                    children: [
+                      Text(
+                        '${review.likesCount}',
+                        style: GoogleFonts.inter(
+                          color: review.isLikedByMe ? AppColors.accentRose : AppColors.textMuted,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      GestureDetector(
+                        onTap: () => provider.toggleLike(review.reviewId),
+                        child: Icon(
+                          review.isLikedByMe ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          color: review.isLikedByMe ? AppColors.accentRose : AppColors.textMuted,
+                          size: 16,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -297,13 +281,117 @@ class DiscoveryScreen extends StatelessWidget {
     
     if (difference.inDays == 0) {
       if (difference.inHours == 0) {
-        return 'Hace ${difference.inMinutes} minutos';
+        return '${difference.inMinutes}m';
       }
-      return 'Hace ${difference.inHours} horas';
+      return '${difference.inHours}h';
     } else if (difference.inDays < 7) {
-      return 'Hace ${difference.inDays} días';
+      return '${difference.inDays}d';
     } else {
-      return '${date.day}/${date.month}/${date.year}';
+      return '${date.day}/${date.month}';
     }
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  final String text;
+  final bool isSpoiler;
+  final int maxLines;
+
+  const _ExpandableText({
+    required this.text,
+    required this.isSpoiler,
+    required this.maxLines,
+  });
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isSpoiler && !_isExpanded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.accentAmber.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.warning_rounded, color: AppColors.accentAmber, size: 10),
+                SizedBox(width: 4),
+                Text('SPOILER', style: TextStyle(color: AppColors.accentAmber, fontSize: 9, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          SpoilerTextWidget(text: widget.text),
+          TextButton(
+            onPressed: () => setState(() => _isExpanded = true),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Leer reseña', style: TextStyle(color: AppColors.accentCyan, fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final span = TextSpan(
+          text: widget.text,
+          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+        );
+        final tp = TextPainter(
+          text: span,
+          maxLines: widget.maxLines,
+          textDirection: TextDirection.ltr,
+        );
+        tp.layout(maxWidth: constraints.maxWidth);
+
+        if (tp.didExceedMaxLines) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.text,
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+                maxLines: _isExpanded ? null : widget.maxLines,
+                overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _isExpanded = !_isExpanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _isExpanded ? 'Leer menos' : 'Leer más',
+                    style: const TextStyle(
+                      color: AppColors.accentCyan,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        } else {
+          return Text(
+            widget.text,
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+          );
+        }
+      },
+    );
   }
 }
