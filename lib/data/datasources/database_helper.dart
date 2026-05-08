@@ -37,7 +37,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 8,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -124,7 +124,63 @@ class DatabaseHelper {
       ''');
       await db.execute('CREATE INDEX idx_review_likes_review ON review_likes(review_id)');
     }
-}
+
+    if (oldVersion < 7) {
+      // Migración a versión 7: Múltiples Reseñas
+      await db.execute('''
+        CREATE TABLE user_reviews (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          game_id TEXT NOT NULL,
+          title TEXT,
+          content TEXT,
+          rating INTEGER,
+          is_spoiler INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+        )
+      ''');
+      await db.execute('CREATE INDEX idx_user_reviews_game ON user_reviews(game_id)');
+      await db.execute('CREATE INDEX idx_user_reviews_user ON user_reviews(user_id)');
+
+      // Migrar reseñas existentes (opcional pero recomendado)
+      final existingReviews = await db.query('game_backlog', where: 'notes IS NOT NULL OR review_title IS NOT NULL');
+      for (var row in existingReviews) {
+        if (row['notes'] != null || row['review_title'] != null) {
+          await db.insert('user_reviews', {
+            'id': 'migrated_${row['id']}',
+            'user_id': row['user_id'],
+            'game_id': row['game_id'],
+            'title': row['review_title'],
+            'content': row['notes'],
+            'rating': row['rating'],
+            'is_spoiler': row['is_spoiler'],
+            'created_at': row['added_date'] ?? DateTime.now().toIso8601String(),
+            'updated_at': row['last_updated'] ?? DateTime.now().toIso8601String(),
+          });
+        }
+      }
+    }
+
+    if (oldVersion < 8) {
+      // Migración a versión 8: Corregir review_likes para apuntar a user_reviews
+      await db.execute('DROP TABLE IF EXISTS review_likes');
+      await db.execute('''
+        CREATE TABLE review_likes (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          review_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (review_id) REFERENCES user_reviews(id) ON DELETE CASCADE,
+          UNIQUE(user_id, review_id)
+        )
+      ''');
+      await db.execute('CREATE INDEX idx_review_likes_review ON review_likes(review_id)');
+    }
+  }
 
   Future<void> _createDB(Database db, int version) async {
     const idType = 'TEXT PRIMARY KEY';
@@ -245,6 +301,25 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('CREATE INDEX idx_review_likes_review ON review_likes(review_id)');
+
+    // Tabla user_reviews - v7
+    await db.execute('''
+      CREATE TABLE user_reviews (
+        id $idType,
+        user_id $textType,
+        game_id $textType,
+        title $textTypeNullable,
+        content $textTypeNullable,
+        rating $intTypeNullable,
+        is_spoiler $intType DEFAULT 0,
+        created_at $textType,
+        updated_at $textType,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_user_reviews_game ON user_reviews(game_id)');
+    await db.execute('CREATE INDEX idx_user_reviews_user ON user_reviews(user_id)');
   }
 
   // --- MOCK DATA SEED ---
