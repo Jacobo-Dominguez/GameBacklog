@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../../providers/backlog_provider.dart';
-import '../../../domain/entities/game_session.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../widgets/session_dialog.dart';
+import 'package:game_backlog/presentation/providers/backlog_provider.dart';
+import 'package:game_backlog/domain/entities/game_session.dart';
+import 'package:game_backlog/core/theme/app_theme.dart';
+import 'package:game_backlog/presentation/widgets/session_dialog.dart';
 
 class JournalScreen extends StatefulWidget {
   const JournalScreen({super.key});
@@ -123,11 +123,13 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  void _showAddSessionDialog(BuildContext context) {
-    // Al no pasar gameId, el diálogo debería permitir seleccionar un juego
+  void _showAddSessionDialog(BuildContext context, {GameSession? existing}) {
     showDialog(
       context: context,
-      builder: (context) => const SessionDialog(),
+      builder: (context) => SessionDialog(
+        existingSession: existing,
+        initialDate: _selectedDay,
+      ),
     );
   }
 
@@ -152,6 +154,11 @@ class _JournalScreenState extends State<JournalScreen> {
             _focusedDay = focusedDay;
           });
         },
+        onPageChanged: (focusedDay) {
+          setState(() {
+            _focusedDay = focusedDay;
+          });
+        },
         calendarStyle: CalendarStyle(
           defaultTextStyle: const TextStyle(color: AppColors.textSecondary),
           weekendTextStyle: const TextStyle(color: AppColors.accentRose),
@@ -172,8 +179,7 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 
   Widget _buildSummaryStats(BacklogProvider provider) {
-    final totalMinutes = provider.getTotalMinutesPlayed();
-    final totalHours = (totalMinutes / 60).toStringAsFixed(1);
+    final stats = provider.getMonthlyActivityStats(_focusedDay);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -187,9 +193,9 @@ class _JournalScreenState extends State<JournalScreen> {
         children: [
           Text('Resumen de Actividad', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           const SizedBox(height: 16),
-          _buildMiniStat(Icons.timer_outlined, 'Tiempo total', '${totalHours}h', AppColors.accentCyan),
+          _buildMiniStat(Icons.timer_outlined, 'Tiempo este mes', '${stats['hours']}h', AppColors.accentCyan),
           const SizedBox(height: 12),
-          _buildMiniStat(Icons.history_rounded, 'Sesiones', '${provider.recentSessions.length}', AppColors.accentPurple),
+          _buildMiniStat(Icons.history_rounded, 'Sesiones este mes', '${stats['count']}', AppColors.accentPurple),
         ],
       ),
     );
@@ -259,7 +265,11 @@ class _JournalScreenState extends State<JournalScreen> {
               if (session.description != null && session.description!.isNotEmpty)
                 Text(session.description!, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textMuted)),
             ])),
-            IconButton(icon: const Icon(Icons.edit_note_rounded, color: AppColors.textMuted), onPressed: () {}),
+            IconButton(
+              icon: const Icon(Icons.edit_note_rounded, color: AppColors.textMuted), 
+              onPressed: () => _showAddSessionDialog(context, existing: session),
+              tooltip: 'Editar sesión',
+            ),
           ],
         ),
       ),

@@ -190,7 +190,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       const SizedBox(height: 10),
       _actionBtn(Icons.explore_outlined, 'Comunidad', () => context.push('/discovery'), AppColors.accentMagenta),
       const SizedBox(height: 10),
-      _actionBtn(Icons.bug_report_outlined, 'Dev Tools', () => context.push('/api-test'), AppColors.accentAmber),
       const SizedBox(height: 16),
       Container(width: double.infinity, decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.accentRose.withOpacity(0.3))),
         child: ElevatedButton.icon(onPressed: () => _logout(context, auth),

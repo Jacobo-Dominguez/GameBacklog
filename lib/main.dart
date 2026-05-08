@@ -11,6 +11,7 @@ import 'data/datasources/game_local_datasource_impl.dart';
 import 'data/datasources/game_backlog_local_datasource_impl.dart';
 import 'data/datasources/game_session_local_datasource.dart';
 import 'data/datasources/game_list_local_datasource.dart';
+import 'data/datasources/review_local_datasource.dart';
 import 'data/datasources/community_local_datasource.dart';
 import 'data/datasources/user_local_datasource_impl.dart';
 import 'data/datasources/session_local_datasource.dart';
@@ -27,14 +28,15 @@ void main() async {
   final dbHelper = DatabaseHelper.instance;
   await dbHelper.database;
 
-  // Inicializar todos los DataSources con las clases correctas
+  // Inicializar todos los DataSources
   final gameDataSource = GameLocalDataSourceImpl(dbHelper);
   final backlogDataSource = GameBacklogLocalDataSourceImpl(dbHelper);
   final gameSessionDataSource = GameSessionLocalDataSource(dbHelper);
   final listDataSource = GameListLocalDataSource(dbHelper);
+  final reviewDataSource = ReviewLocalDataSource(dbHelper);
   final communityDataSource = CommunityLocalDataSource(dbHelper);
   final userDataSource = UserLocalDataSourceImpl(dbHelper);
-  final sessionDataSource = SessionLocalDataSource(); // No toma parámetros
+  final sessionDataSource = SessionLocalDataSource();
 
   runApp(
     MultiProvider(
@@ -53,6 +55,7 @@ void main() async {
             backlogDataSource: backlogDataSource,
             sessionDataSource: gameSessionDataSource,
             listDataSource: listDataSource,
+            reviewDataSource: reviewDataSource,
           ),
           update: (_, auth, previous) {
             final user = auth.currentUser;
@@ -62,6 +65,7 @@ void main() async {
               backlogDataSource: backlogDataSource,
               sessionDataSource: gameSessionDataSource,
               listDataSource: listDataSource,
+              reviewDataSource: reviewDataSource,
             );
           },
         ),
