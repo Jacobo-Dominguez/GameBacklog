@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/backlog_provider.dart';
 import '../../domain/entities/game_session.dart';
 import '../../domain/entities/game.dart';
@@ -54,7 +55,6 @@ class _SessionDialogState extends State<SessionDialog> {
   Widget build(BuildContext context) {
     return Consumer<BacklogProvider>(
       builder: (context, provider, _) {
-        // Obtenemos todos los juegos para el selector (incluyendo completados)
         final allGames = provider.gamesMap.values.toList();
 
         return AlertDialog(
@@ -70,7 +70,6 @@ class _SessionDialogState extends State<SessionDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Selector de Juego (si no se pasó gameId)
                 if (widget.gameId == null && widget.existingSession == null) ...[
                   Text('Juego', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
@@ -86,7 +85,22 @@ class _SessionDialogState extends State<SessionDialog> {
                         icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.accentCyan),
                         items: allGames.map((game) => DropdownMenuItem(
                           value: game.id,
-                          child: Text(game.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 32,
+                                  child: game.coverUrl != null
+                                      ? CachedNetworkImage(imageUrl: game.coverUrl!, fit: BoxFit.cover, placeholder: (context, url) => Container(color: Colors.white10))
+                                      : Container(color: Colors.white10, child: const Icon(Icons.videogame_asset, size: 12)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(game.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14), overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
                         )).toList(),
                         onChanged: (val) => setState(() => _selectedGameId = val),
                       ),
@@ -95,7 +109,6 @@ class _SessionDialogState extends State<SessionDialog> {
                   const SizedBox(height: 20),
                 ],
                 
-                // Fecha
                 Text('Fecha de la sesión', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 InkWell(
@@ -115,7 +128,6 @@ class _SessionDialogState extends State<SessionDialog> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Duración
                 Text('Duración', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Row(
@@ -127,7 +139,6 @@ class _SessionDialogState extends State<SessionDialog> {
                 ),
                 const SizedBox(height: 20),
                 
-                // Descripción
                 Text('Notas (opcional)', style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 TextField(
