@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/backlog_provider.dart';
 import 'presentation/providers/community_provider.dart';
-import 'data/datasources/database_helper.dart';
-import 'data/datasources/game_local_datasource_impl.dart';
-import 'data/datasources/game_backlog_local_datasource_impl.dart';
-import 'data/datasources/game_session_local_datasource.dart';
-import 'data/datasources/game_list_local_datasource.dart';
-import 'data/datasources/review_local_datasource.dart';
-import 'data/datasources/community_local_datasource.dart';
-import 'data/datasources/user_local_datasource_impl.dart';
-import 'data/datasources/session_local_datasource.dart';
+
+// Importaciones de Supabase DataSources
+import 'data/datasources/supabase/game_supabase_datasource.dart';
+import 'data/datasources/supabase/game_backlog_supabase_datasource.dart';
+import 'data/datasources/supabase/game_session_supabase_datasource.dart';
+import 'data/datasources/supabase/game_list_supabase_datasource.dart';
+import 'data/datasources/supabase/review_supabase_datasource.dart';
+import 'data/datasources/supabase/community_supabase_datasource.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,27 +25,34 @@ void main() async {
     debugPrint("Aviso: No se pudo cargar el archivo .env: $e");
   }
 
-  final dbHelper = DatabaseHelper.instance;
-  await dbHelper.database;
+  // Inicializar Supabase
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
-  // Inicializar todos los DataSources
-  final gameDataSource = GameLocalDataSourceImpl(dbHelper);
-  final backlogDataSource = GameBacklogLocalDataSourceImpl(dbHelper);
-  final gameSessionDataSource = GameSessionLocalDataSource(dbHelper);
-  final listDataSource = GameListLocalDataSource(dbHelper);
-  final reviewDataSource = ReviewLocalDataSource(dbHelper);
-  final communityDataSource = CommunityLocalDataSource(dbHelper);
-  final userDataSource = UserLocalDataSourceImpl(dbHelper);
-  final sessionDataSource = SessionLocalDataSource();
+  if (supabaseUrl != null && supabaseAnonKey != null) {
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+    );
+  } else {
+    debugPrint("ERROR CRÍTICO: Faltan credenciales de Supabase en .env");
+  }
+
+  final supabaseClient = Supabase.instance.client;
+
+  // Inicializar todos los DataSources de Supabase
+  final gameDataSource = GameSupabaseDataSource(supabaseClient);
+  final backlogDataSource = GameBacklogSupabaseDataSource(supabaseClient);
+  final gameSessionDataSource = GameSessionSupabaseDataSource(supabaseClient);
+  final listDataSource = GameListSupabaseDataSource(supabaseClient);
+  final reviewDataSource = ReviewSupabaseDataSource(supabaseClient);
+  final communityDataSource = CommunitySupabaseDataSource(supabaseClient);
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(
-            userDataSource: userDataSource,
-            sessionDataSource: sessionDataSource,
-          )..initializeAuth(),
+          create: (_) => AuthProvider()..initializeAuth(),
         ),
         
         ChangeNotifierProxyProvider<AuthProvider, BacklogProvider>(
