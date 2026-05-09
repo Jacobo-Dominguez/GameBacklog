@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class IGDBService {
-  static const String clientId = 'mndb5tj9brc1f5r95johlwccuu63is';
-  static const String clientSecret = '6lk5tgmng7ldc087ehedgoj6ynapzh';
+  static String get clientId => dotenv.env['IGDB_CLIENT_ID'] ?? '';
+  static String get clientSecret => dotenv.env['IGDB_CLIENT_SECRET'] ?? '';
   
   static String? _accessToken;
   static DateTime? _tokenExpiry;

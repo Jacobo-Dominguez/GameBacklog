@@ -26,6 +26,8 @@ class CommunityProvider with ChangeNotifier {
   }
 
   Future<void> loadDiscoveryFeed() async {
+    if (currentUserId.isEmpty) return; // Prevent Invalid UUID error
+
     _isLoading = true;
     _currentPage = 0;
     _hasMore = true;
