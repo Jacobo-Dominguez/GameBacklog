@@ -1,32 +1,32 @@
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../../data/datasources/database_helper.dart';
-import '../../data/datasources/game_local_datasource_impl.dart';
-import '../../data/datasources/game_backlog_local_datasource_impl.dart';
+import '../../data/datasources/database_helper.dart'; // Mantener por si se usa en otro lado, aunque deberíamos limpiarlo
+import '../../data/datasources/supabase/game_supabase_datasource.dart';
+import '../../data/datasources/supabase/game_backlog_supabase_datasource.dart';
 import '../../data/models/game_model.dart';
 import '../../data/models/game_backlog_model.dart';
 import '../../domain/entities/game.dart';
 import '../../domain/entities/game_backlog_entry.dart';
 
-import '../../data/datasources/game_session_local_datasource.dart';
-import '../../data/datasources/game_list_local_datasource.dart';
+import '../../data/datasources/supabase/game_session_supabase_datasource.dart';
+import '../../data/datasources/supabase/game_list_supabase_datasource.dart';
 import '../../domain/entities/game_session.dart';
 import '../../data/models/game_session_model.dart';
 import '../../domain/entities/game_list.dart';
 import '../../data/models/game_list_model.dart';
 import '../../data/models/game_list_item_model.dart';
-import '../../data/datasources/review_local_datasource.dart';
+import '../../data/datasources/supabase/review_supabase_datasource.dart';
 import '../../domain/entities/user_review.dart';
 import '../../data/models/user_review_model.dart';
 
 class BacklogProvider with ChangeNotifier {
   final String userId;
-  final GameLocalDataSourceImpl gameDataSource;
-  final GameBacklogLocalDataSourceImpl backlogDataSource;
-  final GameSessionLocalDataSource sessionDataSource;
-  final GameListLocalDataSource listDataSource;
-  final ReviewLocalDataSource reviewDataSource;
+  final GameSupabaseDataSource gameDataSource;
+  final GameBacklogSupabaseDataSource backlogDataSource;
+  final GameSessionSupabaseDataSource sessionDataSource;
+  final GameListSupabaseDataSource listDataSource;
+  final ReviewSupabaseDataSource reviewDataSource;
 
   List<GameBacklogEntry> _backlogEntries = [];
   Map<String, Game> _gamesMap = {};
@@ -77,6 +77,8 @@ class BacklogProvider with ChangeNotifier {
   }
 
   Future<void> loadBacklog() async {
+    if (userId.isEmpty) return; // Prevent Invalid UUID error in Supabase
+
     _isLoading = true;
     notifyListeners();
 
@@ -194,7 +196,7 @@ Future<bool> addGameFromSearch(Game game) async {
       remoteId: game.remoteId,
       createdAt: game.createdAt,
       updatedAt: game.updatedAt,
-      userId: game.userId,
+      userId: userId, // IMPORTANT: Use provider's userId, not game's default
     );
     
     await gameDataSource.insertGame(gameModel);
@@ -795,7 +797,7 @@ Future<bool> addGameFromSearch(Game game) async {
         remoteId: game.remoteId,
         createdAt: game.createdAt,
         updatedAt: game.updatedAt,
-        userId: game.userId,
+        userId: userId, // IMPORTANT: Use provider's userId, not game's default
       );
       await gameDataSource.insertGame(gameModel);
     }

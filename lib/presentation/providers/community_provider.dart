@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import '../../domain/entities/community_review.dart';
-import '../../data/datasources/community_local_datasource.dart';
+import '../../data/datasources/supabase/community_supabase_datasource.dart';
 
 class CommunityProvider with ChangeNotifier {
-  final CommunityLocalDataSource dataSource;
+  final CommunitySupabaseDataSource dataSource;
   final String currentUserId;
 
   List<CommunityReview> _feed = [];
