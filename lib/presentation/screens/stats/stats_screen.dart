@@ -1,12 +1,90 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:screenshot/screenshot.dart';
 import '../../providers/backlog_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../data/services/export/stats_export_service.dart';
 
-class StatsScreen extends StatelessWidget {
+class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
+
+  @override
+  State<StatsScreen> createState() => _StatsScreenState();
+}
+
+class _StatsScreenState extends State<StatsScreen> {
+  final ScreenshotController _genreController = ScreenshotController();
+  final ScreenshotController _monthlyController = ScreenshotController();
+  bool _isExporting = false;
+
+  Future<void> _exportReport(BuildContext context, BacklogProvider provider) async {
+    setState(() => _isExporting = true);
+    
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final username = authProvider.currentUser?.username ?? 'Gamer';
+      
+      final totalHoursVal = provider.getTotalHours();
+      final avgTime = provider.getAverageCompletionTime();
+      
+      final quickStats = {
+        'Total Juegos': provider.getTotalGames().toString(),
+        'Horas Totales': totalHoursVal.toStringAsFixed(1),
+        'Media por Juego': '${avgTime.toStringAsFixed(1)}h',
+        'Completados': (provider.stats['completed'] ?? 0).toString(),
+      };
+
+      final longestTime = provider.getLongestGameTime();
+      final extraStats = {
+        'Juego más largo': '${longestTime.toStringAsFixed(1)}h',
+        'Backlog creado el': provider.backlogEntries.isEmpty 
+            ? '-' 
+            : _formatDate(provider.backlogEntries.map((e) => e.addedDate).reduce((a, b) => a.isBefore(b) ? a : b)),
+      };
+
+      // Capturar gráficos
+      Uint8List? genreBytes;
+      Uint8List? monthlyBytes;
+
+      if (provider.getGenresDistribution().isNotEmpty) {
+        genreBytes = await _genreController.capture(pixelRatio: 2);
+      }
+      
+      if (provider.getHoursPerMonth().isNotEmpty) {
+        monthlyBytes = await _monthlyController.capture(pixelRatio: 2);
+      }
+
+      await StatsExportService.exportStatsToPdf(
+        username: username,
+        quickStats: quickStats,
+        genreChartBytes: genreBytes,
+        monthlyChartBytes: monthlyBytes,
+        extraStats: extraStats,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Informe generado con éxito')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al exportar: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,16 +107,37 @@ class StatsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ShaderMask(
-                  shaderCallback: (bounds) => AppColors.primaryGradient.createShader(bounds),
-                  child: Text(
-                    'Estadísticas de Juego',
-                    style: GoogleFonts.outfit(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) => AppColors.primaryGradient.createShader(bounds),
+                      child: Text(
+                        'Estadísticas de Juego',
+                        style: GoogleFonts.outfit(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (!_isExporting)
+                      IconButton(
+                        onPressed: () => _exportReport(context, provider),
+                        icon: const Icon(Icons.picture_as_pdf_rounded),
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColors.accentCyan.withOpacity(0.1),
+                          foregroundColor: AppColors.accentCyan,
+                        ),
+                        tooltip: 'Exportar PDF',
+                      )
+                    else
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentCyan),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 24),
 
@@ -53,17 +152,35 @@ class StatsScreen extends StatelessWidget {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(flex: 1, child: _buildGenrePieChart(context, genres)),
+                          Expanded(
+                            flex: 1, 
+                            child: Screenshot(
+                              controller: _genreController,
+                              child: _buildGenrePieChart(context, genres),
+                            ),
+                          ),
                           const SizedBox(width: 24),
-                          Expanded(flex: 2, child: _buildMonthlyBarChart(context, monthlyHours)),
+                          Expanded(
+                            flex: 2, 
+                            child: Screenshot(
+                              controller: _monthlyController,
+                              child: _buildMonthlyBarChart(context, monthlyHours),
+                            ),
+                          ),
                         ],
                       );
                     } else {
                       return Column(
                         children: [
-                          _buildGenrePieChart(context, genres),
+                          Screenshot(
+                            controller: _genreController,
+                            child: _buildGenrePieChart(context, genres),
+                          ),
                           const SizedBox(height: 24),
-                          _buildMonthlyBarChart(context, monthlyHours),
+                          Screenshot(
+                            controller: _monthlyController,
+                            child: _buildMonthlyBarChart(context, monthlyHours),
+                          ),
                         ],
                       );
                     }
@@ -423,9 +540,5 @@ class StatsScreen extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 }
