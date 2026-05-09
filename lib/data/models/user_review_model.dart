@@ -21,7 +21,7 @@ class UserReviewModel extends UserReview {
       title: json['title'],
       content: json['content'],
       rating: json['rating'],
-      isSpoiler: json['is_spoiler'] == 1,
+      isSpoiler: json['is_spoiler'] == true || json['is_spoiler'] == 1,
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
@@ -35,7 +35,7 @@ class UserReviewModel extends UserReview {
       'title': title,
       'content': content,
       'rating': rating,
-      'is_spoiler': isSpoiler ? 1 : 0,
+      'is_spoiler': isSpoiler,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

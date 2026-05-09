@@ -14,10 +14,10 @@ class UserModel extends User {
     return UserModel(
       id: json['id'],
       username: json['username'],
-      email: json['email'],
-      passwordHash: json['password_hash'],
+      email: json['email'] ?? '', // Email often comes from auth context, not profiles table
+      passwordHash: json['password_hash'] ?? '', // Not exposed by Supabase
       avatarUrl: json['avatar_url'],
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : DateTime.now(),
     );
   }
 
@@ -25,10 +25,8 @@ class UserModel extends User {
     return {
       'id': id,
       'username': username,
-      'email': email,
-      'password_hash': passwordHash,
       'avatar_url': avatarUrl,
-      'created_at': createdAt.toIso8601String(),
+      // We don't send email or password to the profiles table, those are handled by Supabase Auth
     };
   }
 }

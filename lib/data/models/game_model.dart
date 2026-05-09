@@ -15,41 +15,41 @@ class GameModel extends Game {
     required super.userId,
   });
 
-  // Constructor from JSON (Local Database - SQLite)
+  // Constructor from JSON (Supabase/PostgreSQL - snake_case)
   factory GameModel.fromJson(Map<String, dynamic> json) {
     return GameModel(
       id: json['id'],
       title: json['title'],
       platform: json['platform'],
       genre: json['genre'],
-      releaseDate: json['releaseDate'] != null
-          ? DateTime.tryParse(json['releaseDate'])
+      releaseDate: json['release_date'] != null
+          ? DateTime.tryParse(json['release_date'])
           : null,
-      coverUrl: json['coverUrl'],
+      coverUrl: json['cover_url'],
       description: json['description'],
-      remoteId: json['remoteId'],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt']) 
-          : DateTime.now(), // Fallback for migration
-      userId: json['userId'] ?? 'unknown', // Fallback for migration
+      remoteId: json['remote_id'],
+      createdAt: DateTime.parse(json['created_at']),
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at']) 
+          : DateTime.now(),
+      userId: json['user_id'] ?? 'unknown',
     );
   }
 
-  // To JSON (Local Database - SQLite)
+  // To JSON (Supabase/PostgreSQL - snake_case)
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
       'platform': platform,
       'genre': genre,
-      'releaseDate': releaseDate?.toIso8601String(),
-      'coverUrl': coverUrl,
+      'release_date': releaseDate?.toIso8601String(),
+      'cover_url': coverUrl,
       'description': description,
-      'remoteId': remoteId,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'userId': userId,
+      'remote_id': remoteId,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'user_id': userId,
     };
   }
 }
