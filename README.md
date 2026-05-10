@@ -1,73 +1,78 @@
 # 📘 Game Backlog - Manual del Proyecto
 
-Bienvenido a la documentación oficial de **Game Backlog**. Esta aplicación está diseñada para ayudar a los jugadores a gestionar su colección, rastrear su progreso y mantener un diario de juego detallado.
+Bienvenido a la documentación oficial de **Game Backlog**. Esta aplicación está diseñada para ayudar a los jugadores a gestionar su colección, rastrear su progreso, compartir reseñas con la comunidad y mantener un diario de juego detallado.
 
 ---
 
 ## 🌟 Descripción del Proyecto
 
-**Game Backlog** es una aplicación multiplataforma (Android & Windows) desarrollada en Flutter. Su objetivo es reemplazar las hojas de cálculo y notas dispersas con una experiencia unificada y moderna.
+**Game Backlog** es una aplicación multiplataforma (Windows & Android) desarrollada en Flutter, respaldada por una robusta arquitectura en la nube mediante **Supabase (PostgreSQL)**. 
 
 ### Características Principales
-*   **Gestión de Backlog**: Organiza tus juegos por estado (Jugando, Pendiente, Completado, Abandonado).
-*   **Integración IGDB**: Búsqueda automática de carátulas, fechas y metadatos de juegos.
-*   **Diario de Juego**: Registra sesiones diarias, duración y notas de progreso.
-*   **Estadísticas**: Visualiza tu tiempo total de juego y hábitos.
-*   **Offline-First**: Tus datos viven en tu dispositivo. No requiere internet para funcionar (excepto búsquedas nuevas).
-*   **Modo Oscuro/Claro**: Adaptable a tus preferencias del sistema.
+*   **Sincronización en la Nube**: Tus datos están seguros y sincronizados en tiempo real en todos tus dispositivos gracias a Supabase.
+*   **Gestión de Backlog**: Organiza tus juegos por estado (Jugando, Pendiente, Completado, Abandonado, En Pausa).
+*   **Comunidad y Reseñas**: Explora el feed de la comunidad, lee reseñas de otros usuarios, da "Likes" y marca reseñas con alertas de *spoiler*.
+*   **Integración IGDB (Twitch)**: Búsqueda automática de carátulas, fechas, géneros y plataformas con la API oficial de IGDB.
+*   **Diario de Juego y Estadísticas**: Registra sesiones diarias, visualiza tu tiempo total de juego y analiza tus hábitos mediante gráficos.
+*   **Listas Personalizadas**: Crea colecciones (ej. "Favoritos de PS5", "Juegos de terror") y añade tus juegos.
 
 ---
 
 ## 🛠️ Tecnologías Utilizadas
 
-El proyecto se construye sobre un stack moderno y robusto:
+El proyecto se construye sobre un stack moderno orientado a la escalabilidad y seguridad:
 
 *   **Frontend**: Flutter (Dart)
+*   **Backend as a Service (BaaS)**: Supabase
+*   **Base de Datos**: PostgreSQL (con políticas de seguridad RLS - Row Level Security)
+*   **Autenticación**: Supabase Auth (Sesiones seguras, JWT)
 *   **Arquitectura**: Clean Architecture (Domain, Data, Presentation)
-*   **Base de Datos**: SQLite (sqflite / sqflite_common_ffi)
 *   **Gestión de Estado**: Provider
 *   **Navegación**: GoRouter
-*   **Red**: HTTP & Dio (Consumo API IGDB)
-*   **UI**: Material Design 3
+*   **Red**: HTTP & flutter_dotenv (Consumo seguro de APIs)
 
 ### Estructura del Proyecto
 
-A continuación se detalla la estructura completa de carpetas del código fuente (`lib/`):
+A continuación se detalla la estructura principal del código fuente (`lib/`) y la configuración de entorno:
 
-```
+```text
+.env.example                    # Plantilla con las variables de entorno necesarias
 lib/
-├── core/                       # Núcleo de la aplicación
-│   ├── config/                 # Configuraciones globales (env, constantes)
-│   ├── constants/              # Textos y valores estáticos
-│   ├── errors/                 # Definición de excepciones y fallos
-│   ├── theme/                  # Estilos, colores y temas (Claro/Oscuro)
-│   ├── utils/                  # Funciones de utilidad (fechas, validadores)
-│   └── widgets/                # Widgets genéricos reutilizables (Inputs, Botones)
+├── core/                       # Núcleo y configuración global de la aplicación
+│   ├── config/                 # Variables de entorno y configuración inicial
+│   ├── constants/              # Cadenas de texto estáticas y valores predefinidos
+│   ├── errors/                 # Clases personalizadas para manejo de excepciones
+│   ├── theme/                  # Sistema de diseño: Colores, tipografías y temas
+│   ├── utils/                  # Funciones de ayuda (formateo de fechas, validadores de texto)
+│   └── widgets/                # Componentes visuales genéricos y reutilizables (Botones, Inputs)
 │
-├── data/                       # Capa de Datos (Implementación)
-│   ├── datasources/            # Fuentes de datos (SQLite, API remota)
-│   ├── models/                 # Modelos de datos (DTOs con parseo JSON)
-│   ├── repositories/           # Implementación concreta de los repositorios
-│   └── services/               # Servicios externos (IGDB Service)
+├── data/                       # Capa de Datos: Conexión con el exterior (Supabase e IGDB)
+│   ├── datasources/            # Orígenes de datos
+│   │   ├── local/              # (Legacy) Implementaciones antiguas de SQLite
+│   │   └── supabase/           # Implementaciones de consultas a PostgreSQL vía Supabase
+│   ├── models/                 # Modelos de datos (Clases DTO con métodos fromJson/toJson)
+│   ├── repositories/           # Implementación real de los repositorios definidos en Dominio
+│   └── services/               # Servicios externos (Ej: `igdb_service.dart` para consumir la API de Twitch)
 │
-├── domain/                     # Capa de Dominio (Lógica de Negocio Pura)
-│   ├── entities/               # Objetos de negocio fundamentales
-│   ├── repositories/           # Contratos (Interfaces) de los repositorios
-│   └── usecases/               # Casos de uso específicos (p.ej. "Añadir Juego")
+├── domain/                     # Capa de Dominio: Reglas de negocio puras (Agnóstica de Flutter)
+│   ├── entities/               # Objetos principales (User, Game, Review, Session)
+│   ├── repositories/           # Contratos/Interfaces abstractas que la capa `data` debe cumplir
+│   └── usecases/               # Lógica de las acciones principales de la app
 │
-├── presentation/               # Capa de Presentación (UI)
-│   ├── providers/              # Gestión de estado (ChangeNotifier)
-│   ├── screens/                # Pantallas principales
-│   │   ├── api_test/           # Pantalla de prueba de API
-│   │   ├── auth/               # Login, Registro y Splash
-│   │   ├── backlog/            # Lista principal y filtros
-│   │   ├── game_detail/        # Detalle del juego y edición
-│   │   ├── journal/            # Diario y calendario
-│   │   ├── profile/            # Perfil de usuario y estadísticas
-│   │   └── search/             # Búsqueda online de juegos
-│   └── widgets/                # Widgets específicos de dominio
+├── presentation/               # Capa de Presentación: UI y gestión de estado
+│   ├── providers/              # Controladores de estado (ChangeNotifier) que alimentan la UI
+│   ├── screens/                # Pantallas principales agrupadas por funcionalidad
+│   │   ├── api_test/           # Pantalla de pruebas interna
+│   │   ├── auth/               # Flujos de Login, Registro y pantalla Splash
+│   │   ├── backlog/            # Tu lista de juegos y filtros por estado
+│   │   ├── community/          # Feed global con reseñas de todos los usuarios
+│   │   ├── game_detail/        # Ficha completa del juego y edición de progreso
+│   │   ├── journal/            # Registro de sesiones de juego y diario
+│   │   ├── profile/            # Perfil de usuario y estadísticas avanzadas
+│   │   └── search/             # Búsqueda de juegos consumiendo la API de IGDB
+│   └── widgets/                # Componentes visuales específicos (Ej: Tarjetas de juego, Avatares)
 │
-└── routes/                     # Configuración de rutas (GoRouter)
+└── routes/                     # Enrutador principal de la app usando GoRouter
 ```
 
 ---
@@ -88,7 +93,16 @@ lib/
     cd gamebacklog
     ```
 
-2.  **Instalar dependencias**:
+2.  **Configurar Variables de Entorno (.env)**:
+    El proyecto utiliza variables de entorno para proteger las credenciales de la base de datos y la API. Debes renombrar el archivo `.env.example` que viene en el proyecto a `.env` y rellenar los datos:
+    ```env
+    SUPABASE_URL=tu_url_de_supabase
+    SUPABASE_ANON_KEY=tu_anon_key_de_supabase
+    IGDB_CLIENT_ID=tu_client_id_de_twitch
+    IGDB_CLIENT_SECRET=tu_client_secret_de_twitch
+    ```
+
+3.  **Instalar dependencias**:
     ```bash
     flutter pub get
     ```
@@ -116,84 +130,113 @@ lib/
         flutter run -d edge
         ```
 
+> 🎁 **Nota para evaluación**: En la entrega del proyecto se proporciona un archivo `.exe` precompilado. Este ejecutable ya lleva empaquetadas las credenciales del `.env`, permitiendo probar la aplicación inmediatamente en cualquier PC con Windows sin necesidad de instalar ni configurar Flutter.
+
 ---
 
-## 🗄️ Base de Datos
+## 🗄️ Base de Datos (Supabase / PostgreSQL)
 
-La aplicación utiliza una base de datos relacional local (SQLite).
+La aplicación ha migrado de una base de datos local a una arquitectura en la nube (BaaS) utilizando **Supabase**, lo cual nos proporciona una base de datos **PostgreSQL** robusta y accesible desde cualquier dispositivo.
 
 ### Esquema y Sentencias SQL
 
-A continuación se detallan las sentencias `CREATE TABLE` utilizadas para generar la estructura de datos:
+A diferencia de un esquema local, en Supabase la seguridad y relaciones se manejan a nivel de servidor. La tabla `profiles` está enlazada mediante un *Trigger* automático al sistema de Autenticación (`auth.users`) de Supabase.
 
-#### 1. Usuarios (`users`)
-Almacena la información de autenticación local.
+A continuación se detalla el script SQL completo que conforma la base de datos de la aplicación:
+
 ```sql
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,
-  username TEXT UNIQUE,
-  email TEXT UNIQUE,
-  password_hash TEXT,
+-- 1. Tabla de perfiles (extiende auth.users de Supabase)
+CREATE TABLE profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
   avatar_url TEXT,
-  created_at TEXT
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
-```
 
-#### 2. Juegos (`games`)
-Catálogo de juegos (datos estáticos obtenidos de IGDB o creados manualmente).
-```sql
+-- 2. Tabla de juegos (compartida entre todos los usuarios)
 CREATE TABLE games (
   id TEXT PRIMARY KEY,
-  title TEXT,
+  title TEXT NOT NULL,
   platform TEXT,
   genre TEXT,
-  releaseDate TEXT,
-  coverUrl TEXT,
+  release_date TIMESTAMPTZ,
+  cover_url TEXT,
   description TEXT,
-  remoteId INTEGER,
-  createdAt TEXT,
-  updatedAt TEXT,
-  userId TEXT
+  remote_id INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id UUID REFERENCES auth.users(id)
 );
-```
 
-#### 3. Backlog (`game_backlog`)
-Relación principal que vincula un usuario con un juego y su estado.
-```sql
+-- 3. Backlog de cada usuario
 CREATE TABLE game_backlog (
   id TEXT PRIMARY KEY,
-  user_id TEXT,
-  game_id TEXT,
-  status TEXT CHECK(status IN ('playing', 'completed', 'pending', 'dropped', 'on_hold')),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  game_id TEXT REFERENCES games(id) ON DELETE CASCADE NOT NULL,
+  status TEXT CHECK(status IN ('playing','completed','pending','dropped','on_hold')) NOT NULL,
   hours_played INTEGER DEFAULT 0,
   rating INTEGER CHECK(rating >= 0 AND rating <= 10),
   notes TEXT,
-  is_favorite INTEGER DEFAULT 0,
+  is_favorite BOOLEAN DEFAULT FALSE,
   review_title TEXT,
-  is_spoiler INTEGER DEFAULT 0,
-  start_date TEXT,
-  end_date TEXT,
-  added_date TEXT,
-  completed_date TEXT,
-  last_updated TEXT,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+  is_spoiler BOOLEAN DEFAULT FALSE,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  added_date TIMESTAMPTZ NOT NULL,
+  completed_date TIMESTAMPTZ,
+  last_updated TIMESTAMPTZ NOT NULL,
   UNIQUE(user_id, game_id)
 );
-```
 
-#### 4. Sesiones de Juego (`game_sessions`)
-Registro detallado del diario de juego (Fase 13).
-```sql
+-- 4. Sesiones de juego (Diario)
 CREATE TABLE game_sessions (
   id TEXT PRIMARY KEY,
-  game_id TEXT,
-  user_id TEXT,
-  session_date TEXT,
-  duration_minutes INTEGER,
+  game_id TEXT REFERENCES games(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  session_date TIMESTAMPTZ NOT NULL,
+  duration_minutes INTEGER NOT NULL,
+  description TEXT
+);
+
+-- 5. Listas personalizadas
+CREATE TABLE game_lists (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
   description TEXT,
-  FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+-- 6. Items de listas personalizadas
+CREATE TABLE game_list_items (
+  id TEXT PRIMARY KEY,
+  list_id TEXT REFERENCES game_lists(id) ON DELETE CASCADE NOT NULL,
+  game_id TEXT REFERENCES games(id) ON DELETE CASCADE NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL,
+  UNIQUE(list_id, game_id)
+);
+
+-- 7. Reseñas de usuario (Comunidad)
+CREATE TABLE user_reviews (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  game_id TEXT REFERENCES games(id) ON DELETE CASCADE NOT NULL,
+  title TEXT,
+  content TEXT,
+  rating INTEGER,
+  is_spoiler BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Likes de reseñas (Comunidad)
+CREATE TABLE review_likes (
+  id TEXT PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  review_id TEXT REFERENCES user_reviews(id) ON DELETE CASCADE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, review_id)
 );
 ```
 
