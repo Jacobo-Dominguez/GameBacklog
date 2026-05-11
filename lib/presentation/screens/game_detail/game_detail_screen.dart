@@ -8,6 +8,7 @@ import 'package:game_backlog/domain/entities/game.dart';
 import 'package:game_backlog/data/datasources/game_remote_datasource.dart';
 import 'package:game_backlog/presentation/providers/backlog_provider.dart';
 import 'package:game_backlog/presentation/providers/community_provider.dart';
+import 'package:game_backlog/presentation/providers/auth_provider.dart';
 import 'package:game_backlog/presentation/screens/backlog/widgets/edit_game_dialog.dart';
 import 'package:game_backlog/presentation/screens/backlog/widgets/review_dialog.dart';
 import 'package:game_backlog/presentation/widgets/session_dialog.dart';
@@ -54,20 +55,59 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     super.dispose();
   }
 
-  void _loadGame() {
+  Future<void> _loadGame() async {
     final backlogProvider = context.read<BacklogProvider>();
     final localGame = backlogProvider.gamesMap[widget.gameId];
 
     if (localGame != null) {
-      _game = localGame;
-      _isLoading = false;
+      setState(() {
+        _game = localGame;
+        _isLoading = false;
+      });
       _loadRemoteDetails();
     } else if (widget.gameHelper != null) {
-      _game = widget.gameHelper!;
-      _isLoading = false;
+      setState(() {
+        _game = widget.gameHelper!;
+        _isLoading = false;
+      });
       _loadRemoteDetails();
     } else {
-      _isLoading = false;
+      // Si no es local ni tiene helper, intentamos cargar de IGDB
+      if (widget.gameId.startsWith('igdb_')) {
+        final remoteId = int.tryParse(widget.gameId.replaceAll('igdb_', ''));
+        if (remoteId != null) {
+          try {
+            final details = await _remoteDataSource.getGameDetails(remoteId);
+            if (details != null && mounted) {
+              setState(() {
+                final currentUserId = context.read<AuthProvider>().currentUser?.id ?? '';
+                _game = Game(
+                  id: widget.gameId,
+                  title: details['name'] ?? 'Juego desconocido',
+                  coverUrl: details['cover'] != null ? 'https:${details['cover']['url']}' : null,
+                  remoteId: remoteId,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                  userId: currentUserId,
+                );
+                _isLoading = false;
+              });
+              _loadRemoteDetails();
+              return;
+            }
+          } catch (e) {
+            debugPrint('Error fetching remote game: $e');
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo encontrar la información del juego')),
+        );
+        context.pop();
+      }
     }
   }
 

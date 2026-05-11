@@ -8,6 +8,7 @@ import '../presentation/screens/search/search_screen.dart';
 import '../presentation/screens/journal/journal_screen.dart';
 import '../presentation/screens/profile/edit_profile_screen.dart';
 import '../presentation/screens/profile/user_reviews_screen.dart';
+import '../domain/entities/game.dart';
 import '../presentation/screens/collections/collections_screen.dart';
 import '../presentation/screens/collections/collection_detail_screen.dart';
 import '../presentation/screens/discovery/discovery_screen.dart';
@@ -76,7 +77,8 @@ class AppRouter {
             name: 'game-detail',
             builder: (context, state) {
               final gameId = state.pathParameters['id']!;
-              return GameDetailScreen(gameId: gameId);
+              final gameHelper = state.extra as Game?;
+              return GameDetailScreen(gameId: gameId, gameHelper: gameHelper);
             },
           ),
           GoRoute(

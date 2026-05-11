@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../providers/community_provider.dart';
+import '../../../domain/entities/game.dart';
 import '../../../domain/entities/community_review.dart';
 import '../../widgets/spoiler_text_widget.dart';
 import '../../../core/theme/app_theme.dart';
@@ -174,9 +175,19 @@ class DiscoveryScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   
-                  // Game Info (Clickable)
                   InkWell(
-                    onTap: () => context.push('/game/${review.gameId}'),
+                    onTap: () {
+                      final game = Game(
+                        id: review.gameId,
+                        title: review.gameTitle,
+                        coverUrl: review.gameCoverUrl,
+                        remoteId: int.tryParse(review.gameId.replaceAll('igdb_', '')),
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
+                        userId: review.userId, // Usamos el ID del autor como placeholder
+                      );
+                      context.push('/game/${review.gameId}', extra: game);
+                    },
                     borderRadius: BorderRadius.circular(8),
                     child: Row(
                       children: [
