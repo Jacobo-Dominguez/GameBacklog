@@ -49,65 +49,83 @@ class StatsExportService {
               // Quick Stats
               pw.Text('Resumen General', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.GridView(
-                crossAxisCount: 2,
-                childAspectRatio: 4,
-                children: quickStats.entries.map((e) {
-                  return pw.Container(
-                    padding: const pw.EdgeInsets.all(5),
-                    child: pw.Row(
-                      children: [
-                        pw.Text('${e.key}: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                        pw.Text(e.value),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-              pw.SizedBox(height: 30),
-
-              // Charts
-              pw.Row(
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
                 children: [
-                  if (genreChartBytes != null)
-                    pw.Expanded(
-                      child: pw.Column(
-                        children: [
-                          pw.Text('Distribución por Género', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                          pw.SizedBox(height: 10),
-                          pw.Image(pw.MemoryImage(genreChartBytes), height: 200),
-                        ],
-                      ),
-                    ),
-                  if (monthlyChartBytes != null)
-                    pw.Expanded(
-                      child: pw.Column(
-                        children: [
-                          pw.Text('Actividad Mensual', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                          pw.SizedBox(height: 10),
-                          pw.Image(pw.MemoryImage(monthlyChartBytes), height: 200),
-                        ],
-                      ),
-                    ),
+                  pw.TableRow(
+                    children: [
+                      _buildStatCell('Total Juegos', quickStats['Total Juegos'] ?? '0'),
+                      _buildStatCell('Horas Totales', quickStats['Horas Totales'] ?? '0'),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      _buildStatCell('Media por Juego', quickStats['Media por Juego'] ?? '0h'),
+                      _buildStatCell('Completados', quickStats['Completados'] ?? '0'),
+                    ],
+                  ),
                 ],
               ),
               pw.SizedBox(height: 30),
 
+              // Charts
+              if (genreChartBytes != null || monthlyChartBytes != null) ...[
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    if (genreChartBytes != null)
+                      pw.Expanded(
+                        child: pw.Column(
+                          children: [
+                            pw.Text('Distribución por Género', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                            pw.SizedBox(height: 10),
+                            pw.Container(
+                              height: 180,
+                              child: pw.Image(pw.MemoryImage(genreChartBytes)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (genreChartBytes != null && monthlyChartBytes != null) pw.SizedBox(width: 20),
+                    if (monthlyChartBytes != null)
+                      pw.Expanded(
+                        child: pw.Column(
+                          children: [
+                            pw.Text('Actividad Mensual', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                            pw.SizedBox(height: 10),
+                            pw.Container(
+                              height: 180,
+                              child: pw.Image(pw.MemoryImage(monthlyChartBytes)),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                pw.SizedBox(height: 30),
+              ],
+
               // Extra Stats
-              pw.Text('Otros Hitos', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 10),
-              ...extraStats.entries.map((e) {
-                return pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(e.key),
-                      pw.Text(e.value, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    ],
-                  ),
-                );
-              }).toList(),
+              if (extraStats.isNotEmpty) ...[
+                pw.Text('Otros Hitos', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 10),
+                pw.Table(
+                  children: extraStats.entries.map((e) {
+                    return pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                          child: pw.Text(e.key),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                          child: pw.Text(e.value, style: pw.TextStyle(fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ],
 
               pw.Spacer(),
               pw.Divider(),
@@ -124,6 +142,20 @@ class StatsExportService {
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: 'GameBacklog_Stats_${username}_${now.millisecondsSinceEpoch}.pdf',
+    );
+  }
+
+  static pw.Widget _buildStatCell(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(10),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(label, style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+          pw.SizedBox(height: 2),
+          pw.Text(value, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+        ],
+      ),
     );
   }
 }
